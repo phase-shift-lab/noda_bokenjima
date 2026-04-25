@@ -50,14 +50,14 @@ const stages = [
     sky: ["#8fd7ff", "#cdefff"],
     ground: "#ddbf8e",
     accent: "#f07f4e",
-    message: "商店街でウォームアップ。コメントを集めて流れを作れ。",
+    message: "商店街でウォームアップ。動く敵はZでどかしながら進め。",
   },
   {
     name: "川沿い",
     sky: ["#8ce3da", "#d7f9ef"],
     ground: "#cdbf7b",
     accent: "#23a18a",
-    message: "川沿いは見通しが良い。BAN板をツッコミ波でどかそう。",
+    message: "川沿いは見通しが良い。BAN板と走る敵をまとめてさばけ。",
   },
   {
     name: "イベント会場",
@@ -72,7 +72,7 @@ const tips = [
   "コメント玉はスコアと熱量を上げる。",
   "ネタ札は高得点。場の空気を読んで拾え。",
   "充電パックで体力回復。",
-  "Zのツッコミ波は障害物を消せる。",
+  "Zのツッコミ波は動く敵や障害物を消せる。",
   "熱量が低いとスコアの伸びが鈍る。",
 ];
 
@@ -132,13 +132,14 @@ function spawnObject(now) {
   const rng = Math.random();
   let kind = "comment";
 
-  if (rng < 0.46) kind = "comment";
-  else if (rng < 0.7) kind = "topic";
-  else if (rng < 0.88) kind = "battery";
-  else if (rng < 0.96) kind = "fire";
+  if (rng < 0.38) kind = "comment";
+  else if (rng < 0.58) kind = "topic";
+  else if (rng < 0.74) kind = "battery";
+  else if (rng < 0.88) kind = "runner";
+  else if (rng < 0.95) kind = "fire";
   else kind = "ban";
 
-  const isHazard = kind === "fire" || kind === "ban";
+  const isHazard = kind === "fire" || kind === "ban" || kind === "runner";
   const baseY = canvas.height - 102;
   const elevated = Math.random() < 0.28;
 
@@ -146,9 +147,9 @@ function spawnObject(now) {
     kind,
     x: canvas.width + 40,
     y: isHazard || !elevated ? baseY : baseY - 124,
-    width: kind === "ban" ? 42 : 28,
-    height: kind === "ban" ? 52 : 28,
-    vx: state.cameraSpeed + 0.7,
+    width: kind === "ban" ? 42 : kind === "runner" ? 38 : 28,
+    height: kind === "ban" ? 52 : kind === "runner" ? 36 : 28,
+    vx: kind === "runner" ? state.cameraSpeed + 1.9 + Math.random() * 0.6 : state.cameraSpeed + 0.7,
     bounce: Math.random() * Math.PI * 2,
   });
 }
@@ -199,11 +200,19 @@ function applyDamage(kind, object) {
   if (now < state.invincibleUntil) return;
 
   state.invincibleUntil = now + 2200;
-  state.health -= kind === "ban" ? 16 : 10;
+  state.health -= kind === "ban" ? 16 : kind === "runner" ? 14 : 10;
   state.hype = clamp(state.hype - 6, 0, 100);
-  state.message = kind === "ban" ? "BAN板に接触。流れが悪い。" : "炎上雲に飲まれた。";
+
+  if (kind === "ban") {
+    state.message = "BAN板に接触。流れが悪い。";
+  } else if (kind === "runner") {
+    state.message = "走る敵にぶつかった。体勢を立て直せ。";
+  } else {
+    state.message = "炎上雲に飲まれた。";
+  }
+
   beep(180, 0.16, "sawtooth", 0.03);
-  emitParticles(object.x, object.y, "#ef4e23", 14);
+  emitParticles(object.x, object.y, kind === "runner" ? "#ff7b4a" : "#ef4e23", 14);
 
   if (state.health <= 0) {
     state.life -= 1;
@@ -238,15 +247,15 @@ function fireWave() {
 
   state.objects = state.objects.filter((object) => {
     const inRange = object.x > state.player.x - 30 && object.x < state.player.x + 320;
-    const affected = inRange && (object.kind === "fire" || object.kind === "ban");
+    const affected = inRange && (object.kind === "fire" || object.kind === "ban" || object.kind === "runner");
     if (affected) {
-      state.score += 180;
+      state.score += object.kind === "runner" ? 240 : 180;
       state.hype = clamp(state.hype + 7, 0, 100);
-      emitParticles(object.x, object.y, "#9ae4ff", 10);
+      emitParticles(object.x, object.y, object.kind === "runner" ? "#ffb36a" : "#9ae4ff", 10);
     }
     return !affected;
   });
-  state.message = "ツッコミ波で空気を切り返した。";
+  state.message = "ツッコミ波で前方の敵を切り返した。";
 }
 
 function updatePlayer() {
@@ -285,10 +294,12 @@ function updateObjects() {
 
   state.objects.forEach((object) => {
     object.x -= object.vx;
-    object.bounce += 0.08;
+    object.bounce += object.kind === "runner" ? 0.18 : 0.08;
 
     if (object.kind === "comment" || object.kind === "topic" || object.kind === "battery") {
       object.renderY = object.y + Math.sin(object.bounce) * 6;
+    } else if (object.kind === "runner") {
+      object.renderY = object.y + Math.sin(object.bounce * 1.6) * 3;
     } else {
       object.renderY = object.y;
     }
@@ -440,6 +451,18 @@ function renderObject(object) {
     ctx.fillStyle = "#eafbf1";
     ctx.fillRect(object.x + 5, y + 2, 8, 3);
     ctx.fillRect(object.x + 4, y + 10, 10, 8);
+  } else if (object.kind === "runner") {
+    ctx.fillStyle = "#5b2f14";
+    ctx.fillRect(object.x + 6, y + 12, 24, 14);
+    ctx.fillStyle = "#f6c55f";
+    ctx.fillRect(object.x + 12, y + 4, 12, 12);
+    ctx.fillStyle = "#1c1f2b";
+    ctx.fillRect(object.x + 22, y + 7, 3, 3);
+    ctx.fillRect(object.x + 2, y + 28, 8, 6);
+    ctx.fillRect(object.x + 14, y + 30, 8, 6);
+    ctx.fillRect(object.x + 28, y + 28, 8, 6);
+    ctx.fillStyle = "#ff7b4a";
+    ctx.fillRect(object.x, y + 18, 6, 8);
   } else if (object.kind === "fire") {
     ctx.fillStyle = "#ef4e23";
     ctx.beginPath();
@@ -486,7 +509,7 @@ function renderOverlay() {
     ctx.font = '24px "DotGothic16"';
     const line = state.life <= 0 ? "もう一度ボタンで再挑戦" : "開始ボタンで配信スタート";
     ctx.fillText(line, canvas.width / 2, canvas.height / 2 + 8);
-    ctx.fillText("コメントを拾い、炎上をかわして熱量80以上を目指せ", canvas.width / 2, canvas.height / 2 + 52);
+    ctx.fillText("コメントを拾い、走る敵と炎上をかわして熱量80以上を目指せ", canvas.width / 2, canvas.height / 2 + 52);
     ctx.textAlign = "left";
   }
 }
