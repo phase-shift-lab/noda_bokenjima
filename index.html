@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>野田草履の冒険島</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Research-driven fan game prototype</p>
+          <h1>野田草履の冒険島</h1>
+          <p class="lead">
+            外配信で街を歩き、コメントをさばき、ネタを拾い、炎上の気配をかわしながら
+            島の熱量を上げていくレトロ配信アクション。
+          </p>
+          <div class="hero-actions">
+            <button id="startButton" class="primary">ゲーム開始</button>
+            <button id="muteButton" class="secondary">SE: ON</button>
+          </div>
+          <p class="note">
+            操作: <strong>← →</strong> 移動 / <strong>Space</strong> ジャンプ /
+            <strong>Z</strong> ツッコミ波
+          </p>
+          <p class="note">現在はやさしいモード: 残機多め・障害物少なめ・クリア条件ゆるめ</p>
+        </div>
+        <div class="hero-card">
+          <div class="pixel-sun"></div>
+          <div class="hero-mini-stage">
+            <div class="mini-city"></div>
+            <div class="mini-character"></div>
+            <div class="mini-chat">888888</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="game-shell">
+        <div class="hud">
+          <div class="hud-item">
+            <span>体力</span>
+            <div class="meter"><div id="healthBar" class="meter-fill health"></div></div>
+          </div>
+          <div class="hud-item">
+            <span>配信熱量</span>
+            <div class="meter"><div id="hypeBar" class="meter-fill hype"></div></div>
+          </div>
+          <div class="hud-stats">
+            <span>スコア <strong id="scoreValue">0</strong></span>
+            <span>残機 <strong id="lifeValue">5</strong></span>
+            <span>日数 <strong id="dayValue">1</strong></span>
+          </div>
+        </div>
+
+        <canvas id="gameCanvas" width="960" height="540" aria-label="ゲーム画面"></canvas>
+
+        <div class="legend">
+          <div class="legend-item"><span class="swatch comment"></span> コメント玉</div>
+          <div class="legend-item"><span class="swatch topic"></span> ネタ札</div>
+          <div class="legend-item"><span class="swatch battery"></span> 充電パック</div>
+          <div class="legend-item"><span class="swatch fire"></span> 炎上雲</div>
+          <div class="legend-item"><span class="swatch ban"></span> BAN板</div>
+        </div>
+      </section>
+
+      <section class="concept-grid">
+        <article class="panel">
+          <h2>ゲームの核</h2>
+          <p>
+            散歩しながら話題を拾い、観客の反応が良い場所を見極めて熱量を上げる構成です。
+            ミスすると炎上雲やBAN板で体力が削られますが、ツッコミ波で切り返せます。
+          </p>
+        </article>
+        <article class="panel">
+          <h2>3つのステージ</h2>
+          <p>
+            商店街、川沿い、イベント会場を進みます。後半ほどコメント速度が上がり、
+            観客読みとジャンプ判断が重要になります。
+          </p>
+        </article>
+        <article class="panel">
+          <h2>リサーチ反映</h2>
+          <p>
+            長い配信歴、外歩き配信、時事トーク、打たれ強さ、場の空気を読む巧さを
+            システムへ翻訳しました。詳しくは README に整理しています。
+          </p>
+        </article>
+      </section>
+    </main>
+
+    <script src="./game.js"></script>
+  </body>
+</html>
