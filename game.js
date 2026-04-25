@@ -379,30 +379,42 @@ function renderBackground() {
   ctx.fillRect(0, canvas.height - 42, canvas.width, 42);
 }
 
+function getPlayerAnimation() {
+  const player = state.player;
+  const moving = Math.abs(player.vx) > 0.7;
+  const grounded = player.onGround;
+  const time = performance.now() * 0.018;
+  const walkCycle = moving && grounded ? Math.sin(time) : 0;
+  const bob = moving && grounded ? Math.abs(Math.sin(time)) * 5 : 0;
+  const tilt = moving && grounded ? walkCycle * 0.03 : 0;
+  return { moving, grounded, walkCycle, bob, tilt };
+}
+
 function renderPlayer() {
   const player = state.player;
   const blink = performance.now() < state.invincibleUntil && Math.floor(performance.now() / 80) % 2 === 0;
   if (blink) return;
 
+  const animation = getPlayerAnimation();
+
   if (playerSprite.complete && playerSprite.naturalWidth > 0) {
     const drawWidth = 152;
     const drawHeight = 212;
     const drawX = player.x - 54;
-    const drawY = player.y - 128;
+    const drawY = player.y - 128 + animation.bob;
 
     ctx.save();
-    if (player.facing === -1) {
-      ctx.translate(drawX + drawWidth / 2, 0);
-      ctx.scale(-1, 1);
-      ctx.drawImage(playerSprite, -drawWidth / 2, drawY, drawWidth, drawHeight);
-    } else {
-      ctx.drawImage(playerSprite, drawX, drawY, drawWidth, drawHeight);
-    }
+    ctx.translate(drawX + drawWidth / 2, drawY + drawHeight / 2);
+    ctx.scale(player.facing, 1);
+    ctx.rotate(animation.tilt * player.facing);
+    ctx.drawImage(playerSprite, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
     ctx.restore();
   } else {
+    const stride = animation.walkCycle * 5;
     ctx.save();
-    ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
+    ctx.translate(player.x + player.width / 2, player.y + player.height / 2 + animation.bob);
     ctx.scale(player.facing, 1);
+    ctx.rotate(animation.tilt);
     ctx.fillStyle = "#1f2027";
     ctx.fillRect(-12, -16, 24, 42);
     ctx.fillStyle = "#eb6f90";
@@ -412,10 +424,10 @@ function renderPlayer() {
     ctx.fillStyle = "#1f2027";
     ctx.fillRect(-14, -40, 28, 8);
     ctx.fillStyle = "#1f2027";
-    ctx.fillRect(-20, -2, 8, 24);
-    ctx.fillRect(12, -2, 8, 24);
-    ctx.fillRect(-10, 22, 8, 24);
-    ctx.fillRect(2, 22, 8, 24);
+    ctx.fillRect(-22, -2 + stride * 0.2, 8, 24);
+    ctx.fillRect(14, -2 - stride * 0.2, 8, 24);
+    ctx.fillRect(-12, 22 - stride, 8, 24);
+    ctx.fillRect(4, 22 + stride, 8, 24);
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(6, -28, 4, 4);
     ctx.fillRect(-10, -28, 4, 4);
