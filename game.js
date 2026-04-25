@@ -2,36 +2,42 @@ const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
 const startButton = document.getElementById("startButton");
-const muteButton = document.getElementById("muteButton");
 const scoreValue = document.getElementById("scoreValue");
 const lifeValue = document.getElementById("lifeValue");
 const dayValue = document.getElementById("dayValue");
 const healthBar = document.getElementById("healthBar");
 const hypeBar = document.getElementById("hypeBar");
+const startOverlay = document.getElementById("startOverlay");
 
 const keys = new Set();
 const playerSprite = new Image();
 playerSprite.src = "./assets/noda-player.png";
+let trimmedPlayerSprite = null;
+
+playerSprite.addEventListener("load", () => {
+  trimmedPlayerSprite = trimTransparentImage(playerSprite);
+});
 
 const state = {
   running: false,
   muted: false,
   score: 0,
-  life: 5,
+  life: 4,
   health: 100,
-  hype: 65,
+  hype: 56,
   day: 1,
   distance: 0,
-  cameraSpeed: 2.8,
+  cameraSpeed: 3.0,
   gravity: 0.7,
   invincibleUntil: 0,
-  waveCooldownUntil: 0,
+  throwCooldownUntil: 0,
   lastSpawn: 0,
   lastTick: 0,
   message: "ゲーム開始で配信スタート",
   stageIndex: 0,
   particles: [],
   objects: [],
+  projectiles: [],
   player: {
     x: 180,
     y: 0,
@@ -50,21 +56,36 @@ const stages = [
     sky: ["#8fd7ff", "#cdefff"],
     ground: "#ddbf8e",
     accent: "#f07f4e",
-    message: "商店街でウォームアップ。動く敵はZでどかしながら進め。",
+    horizon: "#f7e6bf",
+    grass: "#4aa65e",
+    dirt: "#8f6547",
+    scenery: "shops",
+    message: "商店街でも敵多め。マグカップで進路を切り開け。",
+    spawnWeights: { comment: 0.38, topic: 0.18, battery: 0.12, fire: 0.20, ban: 0.12 },
   },
   {
     name: "川沿い",
     sky: ["#8ce3da", "#d7f9ef"],
     ground: "#cdbf7b",
     accent: "#23a18a",
-    message: "川沿いは見通しが良い。BAN板と走る敵をまとめてさばけ。",
+    horizon: "#dff5eb",
+    grass: "#359c72",
+    dirt: "#7d6a48",
+    scenery: "river",
+    message: "川沿いは敵ラッシュ。マグカップでBAN板と炎上雲を掃除しろ。",
+    spawnWeights: { comment: 0.28, topic: 0.12, battery: 0.10, fire: 0.28, ban: 0.22 },
   },
   {
     name: "イベント会場",
     sky: ["#ffc88a", "#ffe7bc"],
     ground: "#ce9b6d",
     accent: "#ef4e23",
-    message: "最後は人だかり。熱量80以上で完走すると大成功。",
+    horizon: "#ffe6c8",
+    grass: "#5d9d55",
+    dirt: "#84513e",
+    scenery: "festival",
+    message: "最後はイベント会場。敵の物量をさばいて3ステージ目を突破しろ。",
+    spawnWeights: { comment: 0.22, topic: 0.10, battery: 0.08, fire: 0.34, ban: 0.26 },
   },
 ];
 
@@ -72,7 +93,7 @@ const tips = [
   "コメント玉はスコアと熱量を上げる。",
   "ネタ札は高得点。場の空気を読んで拾え。",
   "充電パックで体力回復。",
-  "Zのツッコミ波は動く敵や障害物を消せる。",
+  "Zのマグカップで敵をどんどん倒せる。",
   "熱量が低いとスコアの伸びが鈍る。",
 ];
 
@@ -99,21 +120,116 @@ function beep(freq, duration, type = "square", volume = 0.02) {
   oscillator.stop(now + duration);
 }
 
+function trimTransparentImage(image) {
+  const sourceCanvas = document.createElement("canvas");
+  sourceCanvas.width = image.naturalWidth;
+  sourceCanvas.height = image.naturalHeight;
+  const sourceCtx = sourceCanvas.getContext("2d", { willReadFrequently: true });
+  sourceCtx.drawImage(image, 0, 0);
+
+  const imageData = sourceCtx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+  const { data, width, height } = imageData;
+  const queue = [];
+  const visited = new Uint8Array(width * height);
+
+  function isCheckerLike(index) {
+    const r = data[index];
+    const g = data[index + 1];
+    const b = data[index + 2];
+    const a = data[index + 3];
+    if (a === 0) return true;
+
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const neutral = max - min < 18;
+    const nearWhite = r > 236 && g > 236 && b > 236;
+    const nearGray = r > 218 && g > 218 && b > 218 && r < 242 && g < 242 && b < 242;
+    return neutral && (nearWhite || nearGray);
+  }
+
+  function enqueue(x, y) {
+    if (x < 0 || y < 0 || x >= width || y >= height) return;
+    const pos = y * width + x;
+    if (visited[pos]) return;
+    visited[pos] = 1;
+    queue.push(pos);
+  }
+
+  for (let x = 0; x < width; x += 1) {
+    enqueue(x, 0);
+    enqueue(x, height - 1);
+  }
+  for (let y = 0; y < height; y += 1) {
+    enqueue(0, y);
+    enqueue(width - 1, y);
+  }
+
+  while (queue.length > 0) {
+    const pos = queue.shift();
+    const x = pos % width;
+    const y = Math.floor(pos / width);
+    const index = pos * 4;
+    if (!isCheckerLike(index)) continue;
+
+    data[index + 3] = 0;
+    enqueue(x + 1, y);
+    enqueue(x - 1, y);
+    enqueue(x, y + 1);
+    enqueue(x, y - 1);
+  }
+
+  sourceCtx.putImageData(imageData, 0, 0);
+
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const alpha = data[(y * width + x) * 4 + 3];
+      if (alpha > 0) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+  }
+
+  if (maxX < minX || maxY < minY) return image;
+
+  const padding = 3;
+  const cropX = Math.max(0, minX - padding);
+  const cropY = Math.max(0, minY - padding);
+  const cropWidth = Math.min(width - cropX, maxX - minX + 1 + padding * 2);
+  const cropHeight = Math.min(height - cropY, maxY - minY + 1 + padding * 2);
+
+  const trimmedCanvas = document.createElement("canvas");
+  trimmedCanvas.width = cropWidth;
+  trimmedCanvas.height = cropHeight;
+  const trimmedCtx = trimmedCanvas.getContext("2d");
+  trimmedCtx.drawImage(sourceCanvas, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+
+  return trimmedCanvas;
+}
+
 function resetGame() {
   state.running = true;
   state.score = 0;
-  state.life = 5;
+  state.life = 4;
   state.health = 100;
-  state.hype = 65;
+  state.hype = 56;
   state.day = 1;
   state.distance = 0;
-  state.cameraSpeed = 2.8;
+  state.cameraSpeed = 3.0;
   state.invincibleUntil = 0;
-  state.waveCooldownUntil = 0;
+  state.throwCooldownUntil = 0;
   state.lastSpawn = 0;
   state.stageIndex = 0;
   state.objects = [];
   state.particles = [];
+  state.projectiles = [];
   state.message = stages[0].message;
   state.player.x = 180;
   state.player.y = canvas.height - 140;
@@ -125,31 +241,40 @@ function resetGame() {
 
 function spawnObject(now) {
   const elapsed = now - state.lastSpawn;
-  const interval = Math.max(820, 1800 - state.distance * 0.08);
+  const interval = Math.max(560, 1320 - state.distance * 0.11);
   if (elapsed < interval) return;
 
   state.lastSpawn = now;
+  const stage = stages[state.stageIndex];
   const rng = Math.random();
+  const weights = stage.spawnWeights;
+  let edge = weights.comment;
   let kind = "comment";
 
-  if (rng < 0.38) kind = "comment";
-  else if (rng < 0.58) kind = "topic";
-  else if (rng < 0.74) kind = "battery";
-  else if (rng < 0.88) kind = "runner";
-  else if (rng < 0.95) kind = "fire";
-  else kind = "ban";
+  if (rng < edge) {
+    kind = "comment";
+  } else if (rng < (edge += weights.topic)) {
+    kind = "topic";
+  } else if (rng < (edge += weights.battery)) {
+    kind = "battery";
+  } else if (rng < (edge += weights.fire)) {
+    kind = "fire";
+  } else {
+    kind = "ban";
+  }
 
-  const isHazard = kind === "fire" || kind === "ban" || kind === "runner";
+  const isHazard = kind === "fire" || kind === "ban";
   const baseY = canvas.height - 102;
-  const elevated = Math.random() < 0.28;
+  const elevatedChance = stage.scenery === "festival" ? 0.1 : 0.2;
+  const elevated = Math.random() < elevatedChance;
 
   state.objects.push({
     kind,
     x: canvas.width + 40,
     y: isHazard || !elevated ? baseY : baseY - 124,
-    width: kind === "ban" ? 42 : kind === "runner" ? 38 : 28,
-    height: kind === "ban" ? 52 : kind === "runner" ? 36 : 28,
-    vx: kind === "runner" ? state.cameraSpeed + 1.9 + Math.random() * 0.6 : state.cameraSpeed + 0.7,
+    width: kind === "ban" ? 42 : 28,
+    height: kind === "ban" ? 52 : 28,
+    vx: state.cameraSpeed + (kind === "fire" ? 0.75 : 0.45),
     bounce: Math.random() * Math.PI * 2,
   });
 }
@@ -200,19 +325,11 @@ function applyDamage(kind, object) {
   if (now < state.invincibleUntil) return;
 
   state.invincibleUntil = now + 2200;
-  state.health -= kind === "ban" ? 16 : kind === "runner" ? 14 : 10;
+  state.health -= kind === "ban" ? 18 : 11;
   state.hype = clamp(state.hype - 6, 0, 100);
-
-  if (kind === "ban") {
-    state.message = "BAN板に接触。流れが悪い。";
-  } else if (kind === "runner") {
-    state.message = "走る敵にぶつかった。体勢を立て直せ。";
-  } else {
-    state.message = "炎上雲に飲まれた。";
-  }
-
+  state.message = kind === "ban" ? "BAN板に接触。流れが悪い。" : "炎上雲に飲まれた。";
   beep(180, 0.16, "sawtooth", 0.03);
-  emitParticles(object.x, object.y, kind === "runner" ? "#ff7b4a" : "#ef4e23", 14);
+  emitParticles(object.x, object.y, "#ef4e23", 14);
 
   if (state.health <= 0) {
     state.life -= 1;
@@ -236,26 +353,25 @@ function rectsOverlap(a, b) {
   );
 }
 
-function fireWave() {
+function throwMug() {
   const now = performance.now();
-  if (now < state.waveCooldownUntil || !state.running) return;
+  if (now < state.throwCooldownUntil || !state.running) return;
 
-  state.waveCooldownUntil = now + 350;
-  beep(260, 0.08, "square", 0.03);
-  beep(420, 0.12, "triangle", 0.025);
-  emitParticles(state.player.x + 36, state.player.y + 24, "#9ae4ff", 12);
-
-  state.objects = state.objects.filter((object) => {
-    const inRange = object.x > state.player.x - 30 && object.x < state.player.x + 320;
-    const affected = inRange && (object.kind === "fire" || object.kind === "ban" || object.kind === "runner");
-    if (affected) {
-      state.score += object.kind === "runner" ? 240 : 180;
-      state.hype = clamp(state.hype + 7, 0, 100);
-      emitParticles(object.x, object.y, object.kind === "runner" ? "#ffb36a" : "#9ae4ff", 10);
-    }
-    return !affected;
+  const player = state.player;
+  state.throwCooldownUntil = now + 150;
+  state.projectiles.push({
+    x: player.x + (player.facing === 1 ? 36 : -6),
+    y: player.y + 20,
+    vx: player.facing === 1 ? 8.8 : -8.8,
+    vy: -7.2,
+    width: 22,
+    height: 10,
+    rotation: 0,
   });
-  state.message = "ツッコミ波で前方の敵を切り返した。";
+
+  state.message = "マグカップを投げた。";
+  beep(240, 0.05, "square", 0.03);
+  beep(510, 0.08, "triangle", 0.02);
 }
 
 function updatePlayer() {
@@ -278,6 +394,10 @@ function updatePlayer() {
     beep(610, 0.08, "square");
   }
 
+  if (keys.has("KeyZ")) {
+    throwMug();
+  }
+
   player.vy += state.gravity;
   player.x = clamp(player.x + player.vx, 60, canvas.width - 120);
   player.y += player.vy;
@@ -294,12 +414,10 @@ function updateObjects() {
 
   state.objects.forEach((object) => {
     object.x -= object.vx;
-    object.bounce += object.kind === "runner" ? 0.18 : 0.08;
+    object.bounce += 0.08;
 
     if (object.kind === "comment" || object.kind === "topic" || object.kind === "battery") {
       object.renderY = object.y + Math.sin(object.bounce) * 6;
-    } else if (object.kind === "runner") {
-      object.renderY = object.y + Math.sin(object.bounce * 1.6) * 3;
     } else {
       object.renderY = object.y;
     }
@@ -325,6 +443,45 @@ function updateObjects() {
   state.objects = state.objects.filter((object) => object.x > -80 && !object.hit);
 }
 
+function updateProjectiles() {
+  state.projectiles.forEach((projectile) => {
+    projectile.x += projectile.vx;
+    projectile.y += projectile.vy;
+    projectile.vy += 0.42;
+    projectile.rotation += 0.2 * Math.sign(projectile.vx);
+
+    state.objects.forEach((object) => {
+      if (object.hit || (object.kind !== "fire" && object.kind !== "ban")) return;
+
+      const collider = {
+        x: object.x,
+        y: object.renderY ?? object.y,
+        width: object.width,
+        height: object.height,
+      };
+
+      if (rectsOverlap(projectile, collider)) {
+        object.hit = true;
+        projectile.hit = true;
+        state.score += object.kind === "ban" ? 260 : 180;
+        state.hype = clamp(state.hype + 6, 0, 100);
+        state.message = object.kind === "ban" ? "マグカップ命中。BAN板をどかした。" : "マグカップ命中。炎上雲を散らした。";
+        emitParticles(projectile.x, projectile.y, "#9ae4ff", 8);
+        emitParticles(object.x, collider.y, "#f3f0e8", 6);
+        beep(700, 0.05, "square", 0.025);
+      }
+    });
+  });
+
+  state.projectiles = state.projectiles.filter(
+    (projectile) =>
+      !projectile.hit &&
+      projectile.x > -40 &&
+      projectile.x < canvas.width + 40 &&
+      projectile.y < canvas.height + 40,
+  );
+}
+
 function updateParticles() {
   state.particles.forEach((particle) => {
     particle.x += particle.vx;
@@ -336,16 +493,17 @@ function updateParticles() {
 }
 
 function updateStage() {
-  const nextDay = 1 + Math.floor(state.distance / 3200);
-  if (nextDay !== state.day) {
-    state.day = nextDay;
-    state.message = tips[(state.day - 1) % tips.length];
-    beep(820, 0.06);
-    beep(980, 0.1);
+  const segmentLength = 2600;
+  const stageIndex = Math.min(stages.length - 1, Math.floor(state.distance / segmentLength));
+  if (stageIndex !== state.stageIndex) {
+    state.stageIndex = stageIndex;
+    state.message = stages[stageIndex].message;
+    beep(860, 0.08);
+    beep(1020, 0.12);
   }
 
-  state.stageIndex = Math.min(stages.length - 1, Math.floor((state.day - 1) / 2));
-  state.cameraSpeed = 2.8 + Math.min(1.1, state.day * 0.08);
+  state.day = state.stageIndex + 1;
+  state.cameraSpeed = 3.0 + state.stageIndex * 0.38 + Math.min(0.45, state.distance / 10000);
 }
 
 function renderBackground() {
@@ -353,41 +511,75 @@ function renderBackground() {
   const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
   gradient.addColorStop(0, stage.sky[0]);
   gradient.addColorStop(0.55, stage.sky[1]);
-  gradient.addColorStop(0.551, "#f1dfb7");
+  gradient.addColorStop(0.551, stage.horizon);
   gradient.addColorStop(1, stage.ground);
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   ctx.fillStyle = "rgba(255,255,255,0.35)";
   for (let index = 0; index < 4; index += 1) {
-    const offset = (state.distance * (0.2 + index * 0.04)) % (canvas.width + 200);
+    const offset = (state.distance * (0.2 + index * 0.04)) % (canvas.width + 220);
     ctx.fillRect(canvas.width - offset, 60 + index * 24, 120, 18);
     ctx.fillRect(canvas.width - offset + 20, 50 + index * 24, 70, 18);
   }
 
-  ctx.fillStyle = stage.accent;
-  for (let index = 0; index < 8; index += 1) {
-    const base = ((index * 180 - (state.distance * 0.6) % 180) + canvas.width) % (canvas.width + 200);
-    const height = 80 + (index % 3) * 24;
-    ctx.fillRect(base, canvas.height - 200 - height, 56, height);
-    ctx.fillRect(base + 8, canvas.height - 208 - height, 40, 10);
+  if (stage.scenery === "shops") {
+    ctx.fillStyle = stage.accent;
+    for (let index = 0; index < 8; index += 1) {
+      const base = ((index * 180 - (state.distance * 0.6) % 180) + canvas.width) % (canvas.width + 200);
+      const height = 80 + (index % 3) * 24;
+      ctx.fillRect(base, canvas.height - 200 - height, 56, height);
+      ctx.fillStyle = index % 2 === 0 ? "#ffe082" : "#ffffff";
+      ctx.fillRect(base + 8, canvas.height - 208 - height, 40, 10);
+      ctx.fillStyle = stage.accent;
+    }
+  } else if (stage.scenery === "river") {
+    ctx.fillStyle = "#76c7d6";
+    ctx.fillRect(0, canvas.height - 150, canvas.width, 38);
+    ctx.fillStyle = "rgba(255,255,255,0.45)";
+    for (let index = 0; index < 7; index += 1) {
+      const base = ((index * 150 - (state.distance * 1.1) % 150) + canvas.width) % (canvas.width + 160);
+      ctx.fillRect(base, canvas.height - 136, 52, 4);
+    }
+    ctx.fillStyle = "#4c7a3d";
+    for (let index = 0; index < 6; index += 1) {
+      const base = ((index * 170 - (state.distance * 0.45) % 170) + canvas.width) % (canvas.width + 180);
+      ctx.beginPath();
+      ctx.arc(base, canvas.height - 185, 24 + (index % 2) * 10, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (stage.scenery === "festival") {
+    for (let index = 0; index < 10; index += 1) {
+      const base = ((index * 120 - (state.distance * 0.9) % 120) + canvas.width) % (canvas.width + 140);
+      ctx.fillStyle = index % 2 === 0 ? "#d9485f" : "#4456b8";
+      ctx.fillRect(base, canvas.height - 210, 58, 70);
+      ctx.fillStyle = "#fff4d8";
+      ctx.fillRect(base + 6, canvas.height - 202, 46, 10);
+    }
+    ctx.strokeStyle = "#f8f0a5";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, 90);
+    for (let index = 0; index <= 10; index += 1) {
+      const x = index * (canvas.width / 10);
+      const y = 96 + Math.sin(index + state.distance * 0.02) * 8;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    for (let index = 0; index < 18; index += 1) {
+      const x = (index * 55 - state.distance * 0.5) % (canvas.width + 40);
+      const y = 98 + Math.sin(index) * 8;
+      ctx.fillStyle = index % 3 === 0 ? "#ffd447" : index % 3 === 1 ? "#ff6b6b" : "#5dd39e";
+      ctx.beginPath();
+      ctx.arc((x + canvas.width) % canvas.width, y, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
-  ctx.fillStyle = "#4aa65e";
+  ctx.fillStyle = stage.grass;
   ctx.fillRect(0, canvas.height - 90, canvas.width, 90);
-  ctx.fillStyle = "#8f6547";
+  ctx.fillStyle = stage.dirt;
   ctx.fillRect(0, canvas.height - 42, canvas.width, 42);
-}
-
-function getPlayerAnimation() {
-  const player = state.player;
-  const moving = Math.abs(player.vx) > 0.7;
-  const grounded = player.onGround;
-  const time = performance.now() * 0.018;
-  const walkCycle = moving && grounded ? Math.sin(time) : 0;
-  const bob = moving && grounded ? Math.abs(Math.sin(time)) * 5 : 0;
-  const tilt = moving && grounded ? walkCycle * 0.03 : 0;
-  return { moving, grounded, walkCycle, bob, tilt };
 }
 
 function renderPlayer() {
@@ -395,26 +587,25 @@ function renderPlayer() {
   const blink = performance.now() < state.invincibleUntil && Math.floor(performance.now() / 80) % 2 === 0;
   if (blink) return;
 
-  const animation = getPlayerAnimation();
-
-  if (playerSprite.complete && playerSprite.naturalWidth > 0) {
-    const drawWidth = 152;
-    const drawHeight = 212;
-    const drawX = player.x - 54;
-    const drawY = player.y - 128 + animation.bob;
+  if (trimmedPlayerSprite) {
+    const drawWidth = 70;
+    const drawHeight = 96;
+    const drawX = player.x - 18;
+    const drawY = player.y - 28;
 
     ctx.save();
-    ctx.translate(drawX + drawWidth / 2, drawY + drawHeight / 2);
-    ctx.scale(player.facing, 1);
-    ctx.rotate(animation.tilt * player.facing);
-    ctx.drawImage(playerSprite, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+    if (player.facing === -1) {
+      ctx.translate(drawX + drawWidth / 2, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(trimmedPlayerSprite, -drawWidth / 2, drawY, drawWidth, drawHeight);
+    } else {
+      ctx.drawImage(trimmedPlayerSprite, drawX, drawY, drawWidth, drawHeight);
+    }
     ctx.restore();
   } else {
-    const stride = animation.walkCycle * 5;
     ctx.save();
-    ctx.translate(player.x + player.width / 2, player.y + player.height / 2 + animation.bob);
+    ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
     ctx.scale(player.facing, 1);
-    ctx.rotate(animation.tilt);
     ctx.fillStyle = "#1f2027";
     ctx.fillRect(-12, -16, 24, 42);
     ctx.fillStyle = "#eb6f90";
@@ -424,22 +615,19 @@ function renderPlayer() {
     ctx.fillStyle = "#1f2027";
     ctx.fillRect(-14, -40, 28, 8);
     ctx.fillStyle = "#1f2027";
-    ctx.fillRect(-22, -2 + stride * 0.2, 8, 24);
-    ctx.fillRect(14, -2 - stride * 0.2, 8, 24);
-    ctx.fillRect(-12, 22 - stride, 8, 24);
-    ctx.fillRect(4, 22 + stride, 8, 24);
+    ctx.fillRect(-20, -2, 8, 24);
+    ctx.fillRect(12, -2, 8, 24);
+    ctx.fillRect(-10, 22, 8, 24);
+    ctx.fillRect(2, 22, 8, 24);
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(6, -28, 4, 4);
     ctx.fillRect(-10, -28, 4, 4);
     ctx.restore();
   }
 
-  if (performance.now() < state.waveCooldownUntil) {
-    ctx.strokeStyle = "rgba(154, 228, 255, 0.8)";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(player.x + 26, player.y + 24, 42, -0.4, 0.4);
-    ctx.stroke();
+  if (performance.now() < state.throwCooldownUntil) {
+    ctx.fillStyle = "rgba(255, 248, 227, 0.9)";
+    ctx.fillRect(player.x + 18, player.y + 16, 10, 6);
   }
 }
 
@@ -458,40 +646,54 @@ function renderObject(object) {
     ctx.fillRect(object.x + 4, y + 6, 14, 4);
     ctx.fillRect(object.x + 4, y + 14, 10, 4);
   } else if (object.kind === "battery") {
-    ctx.fillStyle = "#21a96c";
-    ctx.fillRect(object.x, y, 18, 28);
-    ctx.fillStyle = "#eafbf1";
-    ctx.fillRect(object.x + 5, y + 2, 8, 3);
-    ctx.fillRect(object.x + 4, y + 10, 10, 8);
-  } else if (object.kind === "runner") {
-    ctx.fillStyle = "#5b2f14";
-    ctx.fillRect(object.x + 6, y + 12, 24, 14);
-    ctx.fillStyle = "#f6c55f";
-    ctx.fillRect(object.x + 12, y + 4, 12, 12);
-    ctx.fillStyle = "#1c1f2b";
-    ctx.fillRect(object.x + 22, y + 7, 3, 3);
-    ctx.fillRect(object.x + 2, y + 28, 8, 6);
-    ctx.fillRect(object.x + 14, y + 30, 8, 6);
-    ctx.fillRect(object.x + 28, y + 28, 8, 6);
-    ctx.fillStyle = "#ff7b4a";
-    ctx.fillRect(object.x, y + 18, 6, 8);
+    ctx.fillStyle = "#16b364";
+    ctx.fillRect(object.x + 2, y, 20, 28);
+    ctx.fillStyle = "#ecfdf3";
+    ctx.fillRect(object.x + 9, y + 3, 6, 22);
+    ctx.fillRect(object.x + 4, y + 11, 16, 6);
+    ctx.strokeStyle = "#0b6b3a";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(object.x + 2, y, 20, 28);
   } else if (object.kind === "fire") {
-    ctx.fillStyle = "#ef4e23";
+    ctx.fillStyle = "#7f1d1d";
     ctx.beginPath();
     ctx.arc(object.x + 14, y + 14, 14, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "#ffd447";
+    ctx.fillStyle = "#ef4444";
     ctx.beginPath();
-    ctx.arc(object.x + 14, y + 14, 6, 0, Math.PI * 2);
+    ctx.arc(object.x + 14, y + 14, 9, 0, Math.PI * 2);
     ctx.fill();
+    ctx.fillStyle = "#fef2f2";
+    ctx.fillRect(object.x + 12, y + 5, 4, 13);
+    ctx.fillRect(object.x + 12, y + 20, 4, 4);
   } else if (object.kind === "ban") {
-    ctx.fillStyle = "#1c1f2b";
+    ctx.fillStyle = "#111827";
     ctx.fillRect(object.x, y, 42, 52);
+    ctx.fillStyle = "#ef4444";
+    ctx.fillRect(object.x + 4, y + 4, 34, 44);
     ctx.fillStyle = "#ffffff";
-    ctx.fillRect(object.x + 6, y + 8, 30, 8);
-    ctx.fillRect(object.x + 6, y + 22, 30, 8);
-    ctx.fillRect(object.x + 6, y + 36, 30, 8);
+    ctx.fillRect(object.x + 18, y + 10, 6, 22);
+    ctx.fillRect(object.x + 18, y + 36, 6, 6);
   }
+}
+
+function renderProjectile(projectile) {
+  ctx.save();
+  ctx.translate(projectile.x + projectile.width / 2, projectile.y + projectile.height / 2);
+  ctx.rotate(projectile.rotation);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(-10, -8, 16, 14);
+  ctx.strokeStyle = "#3f3f46";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(-10, -8, 16, 14);
+  ctx.beginPath();
+  ctx.arc(7, -1, 5, -1.1, 1.1);
+  ctx.stroke();
+  ctx.fillStyle = "#6f4e37";
+  ctx.fillRect(-8, -3, 12, 7);
+
+  ctx.restore();
 }
 
 function renderParticles() {
@@ -505,7 +707,7 @@ function renderParticles() {
 
 function renderOverlay() {
   ctx.fillStyle = "rgba(20, 20, 26, 0.82)";
-  ctx.fillRect(18, 18, 300, 70);
+  ctx.fillRect(18, 18, 390, 78);
   ctx.fillStyle = "#f9f3df";
   ctx.font = '18px "DotGothic16"';
   ctx.fillText(`STAGE ${state.stageIndex + 1}  ${stages[state.stageIndex].name}`, 34, 46);
@@ -521,7 +723,7 @@ function renderOverlay() {
     ctx.font = '24px "DotGothic16"';
     const line = state.life <= 0 ? "もう一度ボタンで再挑戦" : "開始ボタンで配信スタート";
     ctx.fillText(line, canvas.width / 2, canvas.height / 2 + 8);
-    ctx.fillText("コメントを拾い、走る敵と炎上をかわして熱量80以上を目指せ", canvas.width / 2, canvas.height / 2 + 52);
+    ctx.fillText("3ステージを抜けて熱量63以上で完走を目指せ", canvas.width / 2, canvas.height / 2 + 52);
     ctx.textAlign = "left";
   }
 }
@@ -544,10 +746,11 @@ function loop(now) {
     updatePlayer();
     spawnObject(now);
     updateObjects();
+    updateProjectiles();
     updateParticles();
     state.hype = clamp(state.hype - 0.004 * delta, 0, 100);
 
-    if (state.day >= 4 && state.hype >= 55) {
+    if (state.stageIndex >= 2 && state.distance >= 7800 && state.hype >= 63) {
       state.running = false;
       state.message = "大成功。島の空気を完全につかんだ。";
     }
@@ -555,6 +758,7 @@ function loop(now) {
 
   renderBackground();
   state.objects.forEach(renderObject);
+  state.projectiles.forEach(renderProjectile);
   renderPlayer();
   renderParticles();
   renderOverlay();
@@ -565,11 +769,6 @@ function loop(now) {
 window.addEventListener("keydown", (event) => {
   if (["ArrowLeft", "ArrowRight", " ", "Space", "KeyZ"].includes(event.code)) {
     event.preventDefault();
-  }
-
-  if (event.code === "KeyZ") {
-    fireWave();
-    return;
   }
 
   keys.add(event.key);
@@ -585,14 +784,22 @@ startButton.addEventListener("click", async () => {
   if (audioCtx && audioCtx.state === "suspended") {
     await audioCtx.resume();
   }
+  startOverlay.classList.add("hidden");
   resetGame();
-});
-
-muteButton.addEventListener("click", () => {
-  state.muted = !state.muted;
-  muteButton.textContent = state.muted ? "SE: OFF" : "SE: ON";
 });
 
 resetGame();
 state.running = false;
+if (startOverlay) {
+  startOverlay.classList.remove("hidden");
+}
 requestAnimationFrame(loop);
+
+
+
+
+
+
+
+
+
