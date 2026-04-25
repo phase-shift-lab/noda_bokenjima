@@ -13,6 +13,16 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
+    <div id="startOverlay" class="start-overlay">
+      <div class="start-card">
+        <p class="eyebrow">Noda Bokenjima</p>
+        <h1>野田草履の冒険島</h1>
+        <p class="lead">小さくなった主人公で3ステージを進み、Zでマグカップを投げて障害物をどかす。</p>
+        <p class="note">操作: ← → 移動 / Space ジャンプ / Z マグカップ投げ</p>
+        <button id="startButton" class="primary">ゲーム開始</button>
+      </div>
+    </div>
+
     <main class="page">
       <section class="game-shell">
         <div class="hud">
@@ -33,15 +43,6 @@
 
         <div class="canvas-wrap">
           <canvas id="gameCanvas" width="960" height="540" aria-label="ゲーム画面"></canvas>
-          <div id="startOverlay" class="start-overlay">
-            <div class="start-card">
-              <p class="eyebrow">Noda Bokenjima</p>
-              <h1>野田草履の冒険島</h1>
-              <p class="lead">小さくなった主人公で3ステージを進み、Zでマグカップを投げて障害物をどかす。</p>
-              <p class="note">操作: ← → 移動 / Space ジャンプ / Z マグカップ投げ</p>
-              <button id="startButton" class="primary">ゲーム開始</button>
-            </div>
-          </div>
         </div>
       </section>
     </main>
@@ -49,7 +50,3 @@
     <script src="./game.js"></script>
   </body>
 </html>
-
-
-
-
