@@ -52,39 +52,39 @@ const state = {
 
 const stages = [
   {
-    name: "商店街",
-    sky: ["#8fd7ff", "#cdefff"],
-    ground: "#ddbf8e",
-    accent: "#f07f4e",
-    horizon: "#f7e6bf",
-    grass: "#4aa65e",
-    dirt: "#8f6547",
-    scenery: "shops",
-    message: "商店街でも敵多め。マグカップで進路を切り開け。",
+    name: "はじまりの原っぱ",
+    sky: ["#76cbff", "#d5f5ff"],
+    ground: "#86d95d",
+    accent: "#f16f45",
+    horizon: "#e9ffff",
+    grass: "#49bb53",
+    dirt: "#7f5a3a",
+    scenery: "meadow",
+    message: "明るい草原ステージ。放物線マグカップで進路を作れ。",
     spawnWeights: { comment: 0.38, topic: 0.18, battery: 0.12, fire: 0.20, ban: 0.12 },
   },
   {
-    name: "川沿い",
-    sky: ["#8ce3da", "#d7f9ef"],
-    ground: "#cdbf7b",
-    accent: "#23a18a",
-    horizon: "#dff5eb",
-    grass: "#359c72",
-    dirt: "#7d6a48",
-    scenery: "river",
-    message: "川沿いは敵ラッシュ。マグカップでBAN板と炎上雲を掃除しろ。",
+    name: "ふわ雲パーク",
+    sky: ["#8ad5ff", "#eefcff"],
+    ground: "#8fe070",
+    accent: "#2dc493",
+    horizon: "#f6ffff",
+    grass: "#4ebd65",
+    dirt: "#7e6041",
+    scenery: "cloud",
+    message: "空が近い中盤。マグカップの軌道で高低差をさばけ。",
     spawnWeights: { comment: 0.28, topic: 0.12, battery: 0.10, fire: 0.28, ban: 0.22 },
   },
   {
-    name: "イベント会場",
-    sky: ["#ffc88a", "#ffe7bc"],
-    ground: "#ce9b6d",
-    accent: "#ef4e23",
-    horizon: "#ffe6c8",
-    grass: "#5d9d55",
-    dirt: "#84513e",
-    scenery: "festival",
-    message: "最後はイベント会場。敵の物量をさばいて3ステージ目を突破しろ。",
+    name: "きらめきサンセット",
+    sky: ["#8aafff", "#ffe9c7"],
+    ground: "#7fd05e",
+    accent: "#ff8d33",
+    horizon: "#fff6dd",
+    grass: "#57b75a",
+    dirt: "#7b5636",
+    scenery: "sunset",
+    message: "夕焼けの終盤。明るい景色でも敵は濃いめ、投げ続けて押し切れ。",
     spawnWeights: { comment: 0.22, topic: 0.10, battery: 0.08, fire: 0.34, ban: 0.26 },
   },
 ];
@@ -516,70 +516,190 @@ function renderBackground() {
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  ctx.fillStyle = "rgba(255,255,255,0.35)";
-  for (let index = 0; index < 4; index += 1) {
-    const offset = (state.distance * (0.2 + index * 0.04)) % (canvas.width + 220);
-    ctx.fillRect(canvas.width - offset, 60 + index * 24, 120, 18);
-    ctx.fillRect(canvas.width - offset + 20, 50 + index * 24, 70, 18);
+  ctx.fillStyle = "rgba(255,255,255,0.82)";
+  for (let index = 0; index < 6; index += 1) {
+    const offset = (state.distance * (0.16 + index * 0.03)) % (canvas.width + 260);
+    const x = canvas.width - offset;
+    const y = 54 + index * 34 + Math.sin(index + state.distance * 0.002) * 8;
+    drawCloud(x, y, 1 + (index % 2) * 0.2);
   }
 
-  if (stage.scenery === "shops") {
-    ctx.fillStyle = stage.accent;
-    for (let index = 0; index < 8; index += 1) {
-      const base = ((index * 180 - (state.distance * 0.6) % 180) + canvas.width) % (canvas.width + 200);
-      const height = 80 + (index % 3) * 24;
-      ctx.fillRect(base, canvas.height - 200 - height, 56, height);
-      ctx.fillStyle = index % 2 === 0 ? "#ffe082" : "#ffffff";
-      ctx.fillRect(base + 8, canvas.height - 208 - height, 40, 10);
-      ctx.fillStyle = stage.accent;
-    }
-  } else if (stage.scenery === "river") {
-    ctx.fillStyle = "#76c7d6";
-    ctx.fillRect(0, canvas.height - 150, canvas.width, 38);
-    ctx.fillStyle = "rgba(255,255,255,0.45)";
-    for (let index = 0; index < 7; index += 1) {
-      const base = ((index * 150 - (state.distance * 1.1) % 150) + canvas.width) % (canvas.width + 160);
-      ctx.fillRect(base, canvas.height - 136, 52, 4);
-    }
-    ctx.fillStyle = "#4c7a3d";
-    for (let index = 0; index < 6; index += 1) {
-      const base = ((index * 170 - (state.distance * 0.45) % 170) + canvas.width) % (canvas.width + 180);
-      ctx.beginPath();
-      ctx.arc(base, canvas.height - 185, 24 + (index % 2) * 10, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  } else if (stage.scenery === "festival") {
-    for (let index = 0; index < 10; index += 1) {
-      const base = ((index * 120 - (state.distance * 0.9) % 120) + canvas.width) % (canvas.width + 140);
-      ctx.fillStyle = index % 2 === 0 ? "#d9485f" : "#4456b8";
-      ctx.fillRect(base, canvas.height - 210, 58, 70);
-      ctx.fillStyle = "#fff4d8";
-      ctx.fillRect(base + 6, canvas.height - 202, 46, 10);
-    }
-    ctx.strokeStyle = "#f8f0a5";
-    ctx.lineWidth = 3;
+  ctx.fillStyle = "rgba(169, 234, 255, 0.9)";
+  for (let index = 0; index < 5; index += 1) {
+    const x = ((index * 250 - state.distance * 0.18) + canvas.width + 180) % (canvas.width + 240) - 120;
+    const width = 220 + (index % 2) * 60;
+    const height = 80 + (index % 3) * 24;
     ctx.beginPath();
-    ctx.moveTo(0, 90);
-    for (let index = 0; index <= 10; index += 1) {
-      const x = index * (canvas.width / 10);
-      const y = 96 + Math.sin(index + state.distance * 0.02) * 8;
-      ctx.lineTo(x, y);
+    ctx.ellipse(x, canvas.height - 185, width * 0.55, height * 0.7, 0, Math.PI, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = "rgba(133, 237, 181, 0.95)";
+  for (let index = 0; index < 6; index += 1) {
+    const x = ((index * 190 - state.distance * 0.32) + canvas.width + 160) % (canvas.width + 220) - 80;
+    const radius = 54 + (index % 3) * 14;
+    ctx.beginPath();
+    ctx.ellipse(x, canvas.height - 165, radius, radius * 0.7, 0, Math.PI, Math.PI * 2);
+    ctx.fill();
+  }
+
+  if (stage.scenery === "meadow") {
+    for (let index = 0; index < 3; index += 1) {
+      const x = ((index * 340 - state.distance * 0.55) + canvas.width + 320) % (canvas.width + 380) - 140;
+      drawPipe(x, canvas.height - 126, 106, 86);
     }
-    ctx.stroke();
-    for (let index = 0; index < 18; index += 1) {
-      const x = (index * 55 - state.distance * 0.5) % (canvas.width + 40);
-      const y = 98 + Math.sin(index) * 8;
-      ctx.fillStyle = index % 3 === 0 ? "#ffd447" : index % 3 === 1 ? "#ff6b6b" : "#5dd39e";
-      ctx.beginPath();
-      ctx.arc((x + canvas.width) % canvas.width, y, 5, 0, Math.PI * 2);
-      ctx.fill();
+    for (let index = 0; index < 4; index += 1) {
+      const x = ((index * 210 - state.distance * 0.75) + canvas.width + 240) % (canvas.width + 260) - 90;
+      drawBlockColumn(x, canvas.height - 248, 3 + (index % 2));
     }
+  } else if (stage.scenery === "cloud") {
+    for (let index = 0; index < 5; index += 1) {
+      const x = ((index * 170 - state.distance * 0.6) + canvas.width + 210) % (canvas.width + 240) - 80;
+      drawFloatingIsland(x, canvas.height - 258 - (index % 2) * 24, 0.85 + (index % 3) * 0.08);
+    }
+    for (let index = 0; index < 4; index += 1) {
+      const x = ((index * 280 - state.distance * 0.44) + canvas.width + 310) % (canvas.width + 330) - 110;
+      drawPipe(x, canvas.height - 142, 88, 96);
+    }
+  } else if (stage.scenery === "sunset") {
+    ctx.fillStyle = "rgba(255, 255, 208, 0.9)";
+    ctx.beginPath();
+    ctx.arc(canvas.width - 118, 96, 46, 0, Math.PI * 2);
+    ctx.fill();
+
+    for (let index = 0; index < 5; index += 1) {
+      const x = ((index * 210 - state.distance * 0.52) + canvas.width + 260) % (canvas.width + 300) - 110;
+      drawTree(x, canvas.height - 158, 0.95 + (index % 2) * 0.14);
+    }
+    for (let index = 0; index < 4; index += 1) {
+      const x = ((index * 250 - state.distance * 0.82) + canvas.width + 290) % (canvas.width + 310) - 100;
+      drawBlockColumn(x, canvas.height - 236, 4);
+    }
+  }
+
+  ctx.fillStyle = "#3a7bd5";
+  ctx.fillRect(0, canvas.height - 50, canvas.width, 50);
+  for (let index = 0; index < canvas.width / 26 + 2; index += 1) {
+    const x = index * 26 - (state.distance * 0.8) % 26;
+    ctx.fillStyle = index % 2 === 0 ? "#244ca8" : "#2d63cd";
+    ctx.beginPath();
+    ctx.moveTo(x, canvas.height);
+    ctx.lineTo(x + 13, canvas.height - 18);
+    ctx.lineTo(x + 26, canvas.height);
+    ctx.closePath();
+    ctx.fill();
   }
 
   ctx.fillStyle = stage.grass;
-  ctx.fillRect(0, canvas.height - 90, canvas.width, 90);
+  ctx.fillRect(0, canvas.height - 92, canvas.width, 20);
+  for (let x = 0; x < canvas.width; x += 22) {
+    ctx.fillStyle = x % 44 === 0 ? "#66d96c" : "#43b84d";
+    ctx.beginPath();
+    ctx.arc(x + 11, canvas.height - 82, 14, Math.PI, 0);
+    ctx.fill();
+  }
+
   ctx.fillStyle = stage.dirt;
-  ctx.fillRect(0, canvas.height - 42, canvas.width, 42);
+  ctx.fillRect(0, canvas.height - 72, canvas.width, 22);
+  ctx.fillStyle = "#6b4b2f";
+  ctx.fillRect(0, canvas.height - 50, canvas.width, 18);
+
+  for (let x = 0; x < canvas.width; x += 34) {
+    ctx.fillStyle = x % 68 === 0 ? "#9b6d45" : "#855d3a";
+    ctx.fillRect(x, canvas.height - 70, 32, 16);
+  }
+}
+
+function drawCloud(x, y, scale) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  ctx.beginPath();
+  ctx.arc(0, 16, 28, Math.PI * 0.9, Math.PI * 1.95);
+  ctx.arc(28, 10, 24, Math.PI, Math.PI * 2);
+  ctx.arc(56, 18, 20, Math.PI * 1.05, Math.PI * 1.95);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawPipe(x, y, width, height) {
+  ctx.fillStyle = "#31cf57";
+  ctx.fillRect(x, y, width, height);
+  ctx.fillStyle = "#26ab46";
+  ctx.fillRect(x + 8, y + 8, width - 16, height - 8);
+  ctx.fillStyle = "#54eb76";
+  ctx.fillRect(x - 8, y - 18, width + 16, 24);
+  ctx.fillStyle = "#1f8a39";
+  ctx.fillRect(x - 8, y - 18, width + 16, 4);
+  ctx.fillRect(x + width * 0.32, y + 8, 8, height - 8);
+}
+
+function drawBlockColumn(x, y, count) {
+  for (let index = 0; index < count; index += 1) {
+    const blockX = x + index * 40;
+    ctx.fillStyle = "#cf6e4a";
+    ctx.fillRect(blockX, y, 38, 38);
+    ctx.fillStyle = "#f1936a";
+    ctx.fillRect(blockX + 2, y + 2, 34, 16);
+    ctx.strokeStyle = "#87452d";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(blockX + 1, y + 1, 36, 36);
+    ctx.beginPath();
+    ctx.moveTo(blockX + 19, y + 2);
+    ctx.lineTo(blockX + 19, y + 36);
+    ctx.moveTo(blockX + 2, y + 19);
+    ctx.lineTo(blockX + 36, y + 19);
+    ctx.stroke();
+  }
+}
+
+function drawFloatingIsland(x, y, scale) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  ctx.fillStyle = "#64d76f";
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 58, 26, 0, Math.PI, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#48b85d";
+  ctx.beginPath();
+  ctx.ellipse(-20, -10, 24, 16, 0, Math.PI, Math.PI * 2);
+  ctx.ellipse(12, -12, 30, 18, 0, Math.PI, Math.PI * 2);
+  ctx.ellipse(38, -6, 18, 14, 0, Math.PI, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#8f6748";
+  ctx.beginPath();
+  ctx.moveTo(-42, 8);
+  ctx.lineTo(42, 8);
+  ctx.lineTo(18, 42);
+  ctx.lineTo(-14, 42);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawTree(x, y, scale) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  ctx.fillStyle = "#8e6342";
+  ctx.fillRect(-10, -6, 20, 72);
+  ctx.fillRect(-4, -18, 8, 18);
+  ctx.fillStyle = "#4fd56b";
+  const buds = [
+    [-30, -12, 24],
+    [-8, -28, 28],
+    [18, -16, 24],
+    [34, -8, 18],
+    [2, -4, 26],
+  ];
+  buds.forEach(([bx, by, radius]) => {
+    ctx.beginPath();
+    ctx.arc(bx, by, radius, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.restore();
 }
 
 function renderPlayer() {
@@ -634,46 +754,65 @@ function renderPlayer() {
 function renderObject(object) {
   const y = object.renderY ?? object.y;
   if (object.kind === "comment") {
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(object.x, y, 24, 18);
-    ctx.fillStyle = "#2f2f36";
-    ctx.fillRect(object.x + 3, y + 4, 18, 3);
-    ctx.fillRect(object.x + 3, y + 10, 12, 3);
+    ctx.fillStyle = "#ffd44d";
+    ctx.beginPath();
+    ctx.arc(object.x + 12, y + 12, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#fff1a8";
+    ctx.beginPath();
+    ctx.arc(object.x + 10, y + 10, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#b67519";
+    ctx.fillRect(object.x + 11, y + 4, 2, 16);
+    ctx.fillRect(object.x + 6, y + 11, 12, 2);
   } else if (object.kind === "topic") {
-    ctx.fillStyle = "#ffd447";
-    ctx.fillRect(object.x, y, 22, 28);
-    ctx.fillStyle = "#9f6119";
-    ctx.fillRect(object.x + 4, y + 6, 14, 4);
-    ctx.fillRect(object.x + 4, y + 14, 10, 4);
+    ctx.fillStyle = "#ff7ad8";
+    ctx.beginPath();
+    ctx.moveTo(object.x + 11, y);
+    ctx.lineTo(object.x + 22, y + 10);
+    ctx.lineTo(object.x + 16, y + 28);
+    ctx.lineTo(object.x + 6, y + 28);
+    ctx.lineTo(object.x, y + 10);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#ffd3ff";
+    ctx.fillRect(object.x + 9, y + 5, 4, 14);
   } else if (object.kind === "battery") {
-    ctx.fillStyle = "#16b364";
-    ctx.fillRect(object.x + 2, y, 20, 28);
-    ctx.fillStyle = "#ecfdf3";
-    ctx.fillRect(object.x + 9, y + 3, 6, 22);
-    ctx.fillRect(object.x + 4, y + 11, 16, 6);
-    ctx.strokeStyle = "#0b6b3a";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(object.x + 2, y, 20, 28);
+    ctx.fillStyle = "#6dea8f";
+    ctx.beginPath();
+    ctx.arc(object.x + 12, y + 12, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(object.x + 10, y + 4, 4, 16);
+    ctx.fillRect(object.x + 4, y + 10, 16, 4);
   } else if (object.kind === "fire") {
-    ctx.fillStyle = "#7f1d1d";
+    ctx.fillStyle = "#7d3a12";
     ctx.beginPath();
     ctx.arc(object.x + 14, y + 14, 14, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "#ef4444";
+    ctx.fillStyle = "#ff8c42";
     ctx.beginPath();
-    ctx.arc(object.x + 14, y + 14, 9, 0, Math.PI * 2);
+    ctx.moveTo(object.x + 14, y + 4);
+    ctx.quadraticCurveTo(object.x + 22, y + 14, object.x + 14, y + 24);
+    ctx.quadraticCurveTo(object.x + 6, y + 14, object.x + 14, y + 4);
     ctx.fill();
-    ctx.fillStyle = "#fef2f2";
-    ctx.fillRect(object.x + 12, y + 5, 4, 13);
-    ctx.fillRect(object.x + 12, y + 20, 4, 4);
+    ctx.fillStyle = "#fff2bd";
+    ctx.beginPath();
+    ctx.moveTo(object.x + 14, y + 9);
+    ctx.quadraticCurveTo(object.x + 18, y + 14, object.x + 14, y + 19);
+    ctx.quadraticCurveTo(object.x + 10, y + 14, object.x + 14, y + 9);
+    ctx.fill();
   } else if (object.kind === "ban") {
-    ctx.fillStyle = "#111827";
-    ctx.fillRect(object.x, y, 42, 52);
-    ctx.fillStyle = "#ef4444";
-    ctx.fillRect(object.x + 4, y + 4, 34, 44);
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(object.x + 18, y + 10, 6, 22);
-    ctx.fillRect(object.x + 18, y + 36, 6, 6);
+    ctx.fillStyle = "#7b4c2e";
+    ctx.fillRect(object.x + 16, y + 6, 10, 44);
+    ctx.fillStyle = "#ffe7a8";
+    ctx.fillRect(object.x, y, 42, 30);
+    ctx.strokeStyle = "#7b4c2e";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(object.x + 1.5, y + 1.5, 39, 27);
+    ctx.fillStyle = "#d83a3a";
+    ctx.fillRect(object.x + 18, y + 6, 6, 18);
+    ctx.fillRect(object.x + 12, y + 12, 18, 6);
   }
 }
 
@@ -706,17 +845,20 @@ function renderParticles() {
 }
 
 function renderOverlay() {
-  ctx.fillStyle = "rgba(20, 20, 26, 0.82)";
-  ctx.fillRect(18, 18, 390, 78);
-  ctx.fillStyle = "#f9f3df";
+  ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
+  ctx.fillRect(18, 18, 420, 82);
+  ctx.strokeStyle = "rgba(29, 35, 64, 0.82)";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(18, 18, 420, 82);
+  ctx.fillStyle = "#24396b";
   ctx.font = '18px "DotGothic16"';
   ctx.fillText(`STAGE ${state.stageIndex + 1}  ${stages[state.stageIndex].name}`, 34, 46);
   ctx.fillText(state.message, 34, 74);
 
   if (!state.running) {
-    ctx.fillStyle = "rgba(15, 16, 22, 0.78)";
+    ctx.fillStyle = "rgba(25, 53, 102, 0.45)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#fff4d8";
+    ctx.fillStyle = "#fffef9";
     ctx.textAlign = "center";
     ctx.font = '44px "DotGothic16"';
     ctx.fillText(state.life <= 0 ? "配信終了" : "野田草履の冒険島", canvas.width / 2, canvas.height / 2 - 40);
