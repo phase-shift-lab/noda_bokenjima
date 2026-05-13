@@ -8,14 +8,24 @@ const dayValue = document.getElementById("dayValue");
 const healthBar = document.getElementById("healthBar");
 const hypeBar = document.getElementById("hypeBar");
 const startOverlay = document.getElementById("startOverlay");
+const startTitle = startOverlay?.querySelector("h1");
+const startLead = startOverlay?.querySelector(".lead");
+const startNote = startOverlay?.querySelector(".note");
 
 const keys = new Set();
 const playerSprite = new Image();
 playerSprite.src = "./assets/noda-player.png";
-let trimmedPlayerSprite = null;
+let transparentPlayerSprite = null;
+
+const bossSprites = {
+  issy: loadSprite("./assets/issy-boss.svg"),
+  yoshi: loadSprite("./assets/yoshi-boss.svg"),
+  mirori: loadSprite("./assets/mirori-boss.svg"),
+};
+const ponSprite = loadSprite("./assets/pon-option.svg");
 
 playerSprite.addEventListener("load", () => {
-  trimmedPlayerSprite = trimTransparentImage(playerSprite);
+  transparentPlayerSprite = trimTransparentImage(playerSprite);
 });
 
 const state = {
@@ -31,13 +41,25 @@ const state = {
   gravity: 0.7,
   invincibleUntil: 0,
   throwCooldownUntil: 0,
+  mugBurstCount: 0,
+  mugBurstResetAt: 0,
   lastSpawn: 0,
   lastTick: 0,
   message: "ゲーム開始で配信スタート",
   stageIndex: 0,
+  bossesDefeated: [false, false, false],
+  boss: null,
   particles: [],
   objects: [],
   projectiles: [],
+  bossProjectiles: [],
+  companion: {
+    active: false,
+    hp: 0,
+    x: 0,
+    y: 0,
+    cooldownUntil: 0,
+  },
   player: {
     x: 180,
     y: 0,
@@ -61,6 +83,15 @@ const stages = [
     dirt: "#7f5a3a",
     scenery: "meadow",
     message: "明るい草原ステージ。放物線マグカップで進路を作れ。",
+    boss: {
+      id: "issy",
+      name: "イッシー",
+      title: "格闘キック",
+      hp: 12,
+      color: "#d4683e",
+      attackInterval: 1250,
+      message: "1面ボス: イッシー。強烈な蹴りをマグカップで止めろ。",
+    },
     spawnWeights: { comment: 0.38, topic: 0.18, battery: 0.12, fire: 0.20, ban: 0.12 },
   },
   {
@@ -73,6 +104,15 @@ const stages = [
     dirt: "#7e6041",
     scenery: "cloud",
     message: "空が近い中盤。マグカップの軌道で高低差をさばけ。",
+    boss: {
+      id: "yoshi",
+      name: "ヨッシー",
+      title: "高速車イス",
+      hp: 16,
+      color: "#b22b2f",
+      attackInterval: 1080,
+      message: "2面ボス: ヨッシー。高速車イスと3種の神器を避けろ。",
+    },
     spawnWeights: { comment: 0.28, topic: 0.12, battery: 0.10, fire: 0.28, ban: 0.22 },
   },
   {
@@ -85,9 +125,21 @@ const stages = [
     dirt: "#7b5636",
     scenery: "sunset",
     message: "夕焼けの終盤。明るい景色でも敵は濃いめ、投げ続けて押し切れ。",
+    boss: {
+      id: "mirori",
+      name: "ミロリー",
+      title: "黒マスクリスナー召喚",
+      hp: 22,
+      color: "#171717",
+      attackInterval: 1180,
+      message: "3面ボス: ミロリー。異常HPと召喚をPONで受けながら削れ。",
+    },
     spawnWeights: { comment: 0.22, topic: 0.10, battery: 0.08, fire: 0.34, ban: 0.26 },
   },
 ];
+
+const STAGE_SEGMENT_LENGTH = 5600;
+const BOSS_APPROACH_DISTANCE = 4400;
 
 const tips = [
   "コメント玉はスコアと熱量を上げる。",
@@ -104,6 +156,12 @@ const audioCtx = (() => {
     return null;
   }
 })();
+
+function loadSprite(src) {
+  const image = new Image();
+  image.src = src;
+  return image;
+}
 
 function beep(freq, duration, type = "square", volume = 0.02) {
   if (!audioCtx || state.muted) return;
@@ -225,11 +283,19 @@ function resetGame() {
   state.cameraSpeed = 3.0;
   state.invincibleUntil = 0;
   state.throwCooldownUntil = 0;
+  state.mugBurstCount = 0;
+  state.mugBurstResetAt = 0;
   state.lastSpawn = 0;
   state.stageIndex = 0;
+  state.bossesDefeated = [false, false, false];
+  state.boss = null;
   state.objects = [];
   state.particles = [];
   state.projectiles = [];
+  state.bossProjectiles = [];
+  state.companion.active = false;
+  state.companion.hp = 0;
+  state.companion.cooldownUntil = 0;
   state.message = stages[0].message;
   state.player.x = 180;
   state.player.y = canvas.height - 140;
@@ -239,10 +305,35 @@ function resetGame() {
   renderHud();
 }
 
+function showStartOverlay(mode = "start") {
+  if (!startOverlay) return;
+
+  if (mode === "retry") {
+    if (startTitle) startTitle.textContent = "リトライ";
+    if (startLead) startLead.textContent = "配信終了。もう一度ステージ1から挑戦できます。";
+    if (startNote) startNote.textContent = "操作: ← → 移動 / Space ジャンプ / Z マグカップ投げ";
+    startButton.textContent = "もう一度挑戦";
+  } else {
+    if (startTitle) startTitle.textContent = "マナスタイン島の冒険";
+    if (startLead) startLead.textContent = "小さくなった主人公で3ステージを進み、Zでマグカップを投げて障害物をどかす。";
+    if (startNote) startNote.textContent = "操作: ← → 移動 / Space ジャンプ / Z マグカップ投げ";
+    startButton.textContent = "ゲーム開始";
+  }
+
+  startOverlay.classList.remove("hidden");
+}
+
+function hideStartOverlay() {
+  if (startOverlay) {
+    startOverlay.classList.add("hidden");
+  }
+}
+
 function spawnObject(now) {
   const elapsed = now - state.lastSpawn;
-  const interval = Math.max(560, 1320 - state.distance * 0.11);
+  const interval = Math.max(900, 1600 - state.distance * 0.08);
   if (elapsed < interval) return;
+  if (state.objects.filter((object) => object.kind !== "drop").length >= 7) return;
 
   state.lastSpawn = now;
   const stage = stages[state.stageIndex];
@@ -263,7 +354,16 @@ function spawnObject(now) {
     kind = "ban";
   }
 
-  const isHazard = kind === "fire" || kind === "ban";
+  const flyerCount = state.objects.filter((object) => object.kind === "flyer").length;
+  if (flyerCount < 2 && Math.random() < 0.08 + state.stageIndex * 0.025) {
+    kind = "flyer";
+  }
+
+  if (!state.companion.active && !state.boss && Math.random() < 0.04) {
+    kind = "pon";
+  }
+
+  const isHazard = kind === "fire" || kind === "ban" || kind === "flyer";
   const baseY = canvas.height - 102;
   const elevatedChance = stage.scenery === "festival" ? 0.1 : 0.2;
   const elevated = Math.random() < elevatedChance;
@@ -271,11 +371,12 @@ function spawnObject(now) {
   state.objects.push({
     kind,
     x: canvas.width + 40,
-    y: isHazard || !elevated ? baseY : baseY - 124,
-    width: kind === "ban" ? 42 : 28,
-    height: kind === "ban" ? 52 : 28,
-    vx: state.cameraSpeed + (kind === "fire" ? 0.75 : 0.45),
+    y: kind === "flyer" ? 130 + Math.random() * 110 : isHazard || kind === "pon" || !elevated ? baseY : baseY - 124,
+    width: kind === "ban" ? 42 : kind === "flyer" ? 42 : kind === "pon" ? 24 : 28,
+    height: kind === "ban" ? 52 : kind === "flyer" ? 30 : kind === "pon" ? 36 : 28,
+    vx: state.cameraSpeed + (kind === "fire" ? 0.75 : kind === "flyer" ? 1.15 : 0.45),
     bounce: Math.random() * Math.PI * 2,
+    nextDropAt: now + 1200 + Math.random() * 900,
   });
 }
 
@@ -317,6 +418,14 @@ function applyPickup(kind, object) {
     state.message = "充電完了。まだ歩ける。";
     beep(390, 0.16, "triangle");
     emitParticles(object.x, object.y, "#21a96c", 10);
+  } else if (kind === "pon") {
+    state.companion.active = true;
+    state.companion.hp = 6;
+    state.hype = clamp(state.hype + 8, 0, 100);
+    state.message = "PONが合流。前方で敵攻撃を受け止める。";
+    beep(580, 0.08, "triangle");
+    beep(920, 0.12, "square");
+    emitParticles(object.x, object.y, "#7dd3fc", 16);
   }
 }
 
@@ -335,11 +444,15 @@ function applyDamage(kind, object) {
     state.life -= 1;
     state.health = 100;
     state.hype = clamp(state.hype - 4, 0, 100);
+    state.companion.active = false;
+    state.companion.hp = 0;
+    state.companion.cooldownUntil = 0;
     state.message = "仕切り直し。配信はまだ終わらない。";
     beep(120, 0.25, "square", 0.035);
     if (state.life <= 0) {
       state.running = false;
       state.message = "配信終了。また日を改めよう。";
+      showStartOverlay("retry");
     }
   }
 }
@@ -353,12 +466,62 @@ function rectsOverlap(a, b) {
   );
 }
 
+function companionCollider() {
+  if (!state.companion.active) return null;
+  const player = state.player;
+  const width = 22;
+  const height = 36;
+  state.companion.x = clamp(player.x + player.facing * 50, 30, canvas.width - 50);
+  state.companion.y = player.y + 18 + Math.sin(performance.now() * 0.008) * 5;
+  return {
+    x: state.companion.x,
+    y: state.companion.y,
+    width,
+    height,
+  };
+}
+
+function absorbWithPon(hitbox, color = "#7dd3fc") {
+  const shield = companionCollider();
+  if (!shield || !rectsOverlap(shield, hitbox)) return false;
+
+  const now = performance.now();
+  if (now >= state.companion.cooldownUntil) {
+    state.companion.hp -= 1;
+    state.companion.cooldownUntil = now + 220;
+    state.message = "PONが前で受け止めた。";
+    emitParticles(shield.x + shield.width / 2, shield.y + shield.height / 2, color, 10);
+    beep(310, 0.05, "square", 0.025);
+    if (state.companion.hp <= 0) {
+      state.companion.active = false;
+      state.message = "PONが弾き飛ばされた。";
+      emitParticles(shield.x, shield.y, "#fca5a5", 16);
+    }
+  }
+  return true;
+}
+
 function throwMug() {
   const now = performance.now();
   if (now < state.throwCooldownUntil || !state.running) return;
 
+  if (now >= state.mugBurstResetAt) {
+    state.mugBurstCount = 0;
+  }
+
+  if (state.mugBurstCount >= 3) {
+    state.throwCooldownUntil = now + 820;
+    state.mugBurstCount = 0;
+    state.mugBurstResetAt = now + 820;
+    state.message = "マグカップは3連投まで。少し間を置け。";
+    beep(150, 0.06, "square", 0.02);
+    return;
+  }
+
   const player = state.player;
-  state.throwCooldownUntil = now + 150;
+  state.throwCooldownUntil = now + 170;
+  state.mugBurstCount += 1;
+  state.mugBurstResetAt = now + 1100;
   state.projectiles.push({
     x: player.x + (player.facing === 1 ? 36 : -6),
     y: player.y + 20,
@@ -402,6 +565,7 @@ function updatePlayer() {
   player.x = clamp(player.x + player.vx, 60, canvas.width - 120);
   player.y += player.vy;
 
+  player.onGround = false;
   if (player.y >= floorY) {
     player.y = floorY;
     player.vy = 0;
@@ -411,12 +575,33 @@ function updatePlayer() {
 
 function updateObjects() {
   const player = state.player;
+  const now = performance.now();
 
   state.objects.forEach((object) => {
-    object.x -= object.vx;
+    object.x -= object.vx ?? state.cameraSpeed;
     object.bounce += 0.08;
 
-    if (object.kind === "comment" || object.kind === "topic" || object.kind === "battery") {
+    if (object.kind === "drop") {
+      object.y += object.vy;
+      object.vy += 0.28;
+      object.renderY = object.y;
+    } else if (object.kind === "flyer") {
+      object.renderY = object.y + Math.sin(object.bounce) * 10;
+      const dropCount = state.objects.filter((candidate) => candidate.kind === "drop").length;
+      if (dropCount < 7 && now >= object.nextDropAt) {
+        object.nextDropAt = now + 1400 + Math.random() * 900;
+        state.objects.push({
+          kind: "drop",
+          x: object.x + 14,
+          y: object.renderY + 22,
+          width: 18,
+          height: 22,
+          vx: state.cameraSpeed * 0.35,
+          vy: 2.4,
+          bounce: 0,
+        });
+      }
+    } else if (object.kind === "comment" || object.kind === "topic" || object.kind === "battery" || object.kind === "pon") {
       object.renderY = object.y + Math.sin(object.bounce) * 6;
     } else {
       object.renderY = object.y;
@@ -429,18 +614,23 @@ function updateObjects() {
       height: object.height,
     };
 
+    if ((object.kind === "fire" || object.kind === "ban" || object.kind === "drop" || object.kind === "flyer") && absorbWithPon(collider, "#bfdbfe")) {
+      object.hit = true;
+      return;
+    }
+
     if (rectsOverlap(player, collider)) {
-      if (object.kind === "comment" || object.kind === "topic" || object.kind === "battery") {
+      if (object.kind === "comment" || object.kind === "topic" || object.kind === "battery" || object.kind === "pon") {
         applyPickup(object.kind, object);
         object.hit = true;
       } else {
-        applyDamage(object.kind, object);
+        applyDamage(object.kind === "ban" ? "ban" : "fire", object);
         object.hit = true;
       }
     }
   });
 
-  state.objects = state.objects.filter((object) => object.x > -80 && !object.hit);
+  state.objects = state.objects.filter((object) => object.x > -80 && object.y < canvas.height + 80 && !object.hit);
 }
 
 function updateProjectiles() {
@@ -451,7 +641,7 @@ function updateProjectiles() {
     projectile.rotation += 0.2 * Math.sign(projectile.vx);
 
     state.objects.forEach((object) => {
-      if (object.hit || (object.kind !== "fire" && object.kind !== "ban")) return;
+      if (object.hit || (object.kind !== "fire" && object.kind !== "ban" && object.kind !== "flyer" && object.kind !== "drop")) return;
 
       const collider = {
         x: object.x,
@@ -463,14 +653,42 @@ function updateProjectiles() {
       if (rectsOverlap(projectile, collider)) {
         object.hit = true;
         projectile.hit = true;
-        state.score += object.kind === "ban" ? 260 : 180;
+        state.score += object.kind === "ban" ? 260 : object.kind === "flyer" ? 220 : 180;
         state.hype = clamp(state.hype + 6, 0, 100);
-        state.message = object.kind === "ban" ? "マグカップ命中。BAN板をどかした。" : "マグカップ命中。炎上雲を散らした。";
+        state.message =
+          object.kind === "ban"
+            ? "マグカップ命中。BAN板をどかした。"
+            : object.kind === "flyer"
+              ? "マグカップ命中。空中敵を落とした。"
+              : "マグカップ命中。危険物を散らした。";
         emitParticles(projectile.x, projectile.y, "#9ae4ff", 8);
         emitParticles(object.x, collider.y, "#f3f0e8", 6);
         beep(700, 0.05, "square", 0.025);
       }
     });
+
+    if (state.boss && !state.boss.defeated) {
+      const bossHitbox = {
+        x: state.boss.x,
+        y: state.boss.y,
+        width: state.boss.width,
+        height: state.boss.height,
+      };
+
+      if (rectsOverlap(projectile, bossHitbox)) {
+        state.boss.hp -= 1;
+        projectile.hit = true;
+        state.score += 120;
+        state.hype = clamp(state.hype + 2, 0, 100);
+        state.message = `${state.boss.name}に命中。残りHP ${Math.max(0, state.boss.hp)}。`;
+        emitParticles(projectile.x, projectile.y, "#fde68a", 12);
+        beep(760, 0.05, "square", 0.025);
+
+        if (state.boss.hp <= 0) {
+          defeatBoss();
+        }
+      }
+    }
   });
 
   state.projectiles = state.projectiles.filter(
@@ -480,6 +698,175 @@ function updateProjectiles() {
       projectile.x < canvas.width + 40 &&
       projectile.y < canvas.height + 40,
   );
+}
+
+function bossSpawnDistance(index) {
+  return index * STAGE_SEGMENT_LENGTH + BOSS_APPROACH_DISTANCE;
+}
+
+function spawnBoss(index) {
+  const config = stages[index].boss;
+  state.boss = {
+    ...config,
+    stageIndex: index,
+    hp: config.hp,
+    maxHp: config.hp,
+    x: canvas.width + 60,
+    y: canvas.height - 186,
+    width: 88,
+    height: 114,
+    vx: -1.8 - index * 0.35,
+    defeated: false,
+    nextAttackAt: performance.now() + 900,
+    attackStep: 0,
+  };
+  state.message = config.message;
+  state.objects = state.objects.filter((object) => object.kind === "pon" || object.kind === "battery");
+  beep(170, 0.12, "sawtooth", 0.03);
+}
+
+function defeatBoss() {
+  if (!state.boss) return;
+  const stageIndex = state.boss.stageIndex;
+  state.bossesDefeated[stageIndex] = true;
+  state.score += 1200 + stageIndex * 600;
+  state.hype = clamp(state.hype + 18, 0, 100);
+  state.message = `${state.boss.name}撃破。次のエリアへ進める。`;
+  emitParticles(state.boss.x + 30, state.boss.y + 35, "#fef08a", 30);
+  beep(860, 0.08, "square", 0.03);
+  beep(1120, 0.14, "triangle", 0.025);
+  state.boss = null;
+  state.bossProjectiles = [];
+}
+
+function updateBoss(now) {
+  const stageIndex = state.stageIndex;
+  if (!state.boss && !state.bossesDefeated[stageIndex] && state.distance >= bossSpawnDistance(stageIndex)) {
+    spawnBoss(stageIndex);
+  }
+
+  if (state.boss) {
+    const boss = state.boss;
+    const targetX = canvas.width - 150;
+    if (boss.x > targetX) {
+      boss.x += boss.vx;
+    } else {
+      boss.x += Math.sin(now * 0.004 + boss.stageIndex) * 0.7;
+    }
+
+    if (now >= boss.nextAttackAt) {
+      bossAttack(boss, now);
+      boss.nextAttackAt = now + boss.attackInterval;
+      boss.attackStep += 1;
+    }
+
+    const player = state.player;
+    if (rectsOverlap(player, boss)) {
+      applyDamage("ban", boss);
+    }
+  }
+
+  state.bossProjectiles.forEach((shot) => {
+    shot.x += shot.vx;
+    shot.y += shot.vy;
+    shot.vy += shot.gravity ?? 0;
+    shot.life -= 1;
+
+    const hitbox = {
+      x: shot.x,
+      y: shot.y,
+      width: shot.width,
+      height: shot.height,
+    };
+
+    if (absorbWithPon(hitbox, shot.color)) {
+      shot.hit = true;
+      return;
+    }
+
+    if (rectsOverlap(state.player, hitbox)) {
+      applyDamage(shot.kind === "kick" ? "ban" : "fire", hitbox);
+      shot.hit = true;
+    }
+  });
+
+  state.bossProjectiles = state.bossProjectiles.filter(
+    (shot) => !shot.hit && shot.life > 0 && shot.x > -120 && shot.x < canvas.width + 160 && shot.y < canvas.height + 80,
+  );
+}
+
+function bossAttack(boss, now) {
+  if (boss.id === "issy") {
+    state.bossProjectiles.push({
+      kind: "kick",
+      x: boss.x - 24,
+      y: boss.y + 54,
+      width: 44,
+      height: 18,
+      vx: -7.4,
+      vy: 0,
+      life: 70,
+      color: "#f97316",
+    });
+    state.message = "イッシーの蹴り。PONかジャンプでしのげ。";
+  } else if (boss.id === "yoshi") {
+    const relics = [
+      { kind: "relic-can", y: boss.y + 20, vy: -1.5, color: "#dbeafe" },
+      { kind: "relic-rod", y: boss.y + 42, vy: 0, color: "#fca5a5" },
+      { kind: "relic-card", y: boss.y + 64, vy: 1.2, color: "#fde68a" },
+    ];
+    relics.forEach((relic, index) => {
+      state.bossProjectiles.push({
+        ...relic,
+        x: boss.x - 18,
+        width: 24,
+        height: 24,
+        vx: -5.7 - index * 0.8,
+        gravity: 0.04,
+        life: 110,
+      });
+    });
+    boss.x = clamp(boss.x - 18, canvas.width - 220, canvas.width - 110);
+    state.message = "ヨッシーが3種の神器をばらまいた。";
+  } else if (boss.id === "mirori") {
+    state.bossProjectiles.push({
+      kind: "double-punch",
+      x: boss.x - 34,
+      y: boss.y + 24,
+      width: 34,
+      height: 20,
+      vx: -4.8,
+      vy: 0,
+      life: 72,
+      color: "#c4b5fd",
+    });
+    state.bossProjectiles.push({
+      kind: "double-punch",
+      x: boss.x - 34,
+      y: boss.y + 58,
+      width: 34,
+      height: 20,
+      vx: -4.8,
+      vy: 0,
+      life: 72,
+      color: "#c4b5fd",
+    });
+
+    if (boss.attackStep % 3 === 0) {
+      for (let index = 0; index < 1; index += 1) {
+        state.objects.push({
+          kind: "ban",
+          x: canvas.width + 40 + index * 42,
+          y: canvas.height - 102,
+          width: 34,
+          height: 42,
+          vx: state.cameraSpeed + 0.9 + index * 0.2,
+          bounce: 0,
+        });
+      }
+    }
+    state.message = "ミロリーのWパンチ。隙にマグカップを当てろ。";
+  }
 }
 
 function updateParticles() {
@@ -493,8 +880,9 @@ function updateParticles() {
 }
 
 function updateStage() {
-  const segmentLength = 2600;
-  const stageIndex = Math.min(stages.length - 1, Math.floor(state.distance / segmentLength));
+  const rawStageIndex = Math.min(stages.length - 1, Math.floor(state.distance / STAGE_SEGMENT_LENGTH));
+  const stageIndex =
+    rawStageIndex > state.stageIndex && !state.bossesDefeated[state.stageIndex] ? state.stageIndex : rawStageIndex;
   if (stageIndex !== state.stageIndex) {
     state.stageIndex = stageIndex;
     state.message = stages[stageIndex].message;
@@ -548,10 +936,6 @@ function renderBackground() {
       const x = ((index * 340 - state.distance * 0.55) + canvas.width + 320) % (canvas.width + 380) - 140;
       drawPipe(x, canvas.height - 126, 106, 86);
     }
-    for (let index = 0; index < 4; index += 1) {
-      const x = ((index * 210 - state.distance * 0.75) + canvas.width + 240) % (canvas.width + 260) - 90;
-      drawBlockColumn(x, canvas.height - 248, 3 + (index % 2));
-    }
   } else if (stage.scenery === "cloud") {
     for (let index = 0; index < 5; index += 1) {
       const x = ((index * 170 - state.distance * 0.6) + canvas.width + 210) % (canvas.width + 240) - 80;
@@ -571,11 +955,9 @@ function renderBackground() {
       const x = ((index * 210 - state.distance * 0.52) + canvas.width + 260) % (canvas.width + 300) - 110;
       drawTree(x, canvas.height - 158, 0.95 + (index % 2) * 0.14);
     }
-    for (let index = 0; index < 4; index += 1) {
-      const x = ((index * 250 - state.distance * 0.82) + canvas.width + 290) % (canvas.width + 310) - 100;
-      drawBlockColumn(x, canvas.height - 236, 4);
-    }
   }
+
+  drawPreBossCourse();
 
   ctx.fillStyle = "#3a7bd5";
   ctx.fillRect(0, canvas.height - 50, canvas.width, 50);
@@ -702,24 +1084,189 @@ function drawTree(x, y, scale) {
   ctx.restore();
 }
 
+function drawPreBossCourse() {
+  const stageStart = state.stageIndex * STAGE_SEGMENT_LENGTH;
+  const localDistance = state.distance - stageStart;
+  const bossDistance = bossSpawnDistance(state.stageIndex) - stageStart;
+  const progress = clamp(localDistance / bossDistance, 0, 1);
+  const floorTop = canvas.height - 92;
+
+  if (state.stageIndex === 0) {
+    drawStage1BossRoad(floorTop);
+  } else if (state.stageIndex === 1) {
+    drawStage2BossRoad(floorTop);
+  } else {
+    drawStage3BossRoad(floorTop);
+  }
+
+  if (progress > 0.7 || state.boss) {
+    const gateX = canvas.width - 128 - Math.max(0, (progress - 0.7) * 220);
+    drawBossGate(gateX, floorTop - 104, state.stageIndex);
+  }
+}
+
+function drawStage1BossRoad(floorTop) {
+  for (let index = 0; index < 4; index += 1) {
+    const lane = (index * 420 - state.distance * 0.64) % (canvas.width + 360);
+    const x = (lane + canvas.width + 360) % (canvas.width + 360) - 170;
+    drawGroundLandmark(x, floorTop - 26, index % 2 === 0);
+  }
+}
+
+function drawStage2BossRoad(floorTop) {
+  for (let index = 0; index < 5; index += 1) {
+    const lane = (index * 360 - state.distance * 0.78) % (canvas.width + 340);
+    const x = (lane + canvas.width + 340) % (canvas.width + 340) - 160;
+    drawWheelchairLane(x, floorTop - 12, index % 2 === 0);
+  }
+}
+
+function drawStage3BossRoad(floorTop) {
+  for (let index = 0; index < 6; index += 1) {
+    const lane = (index * 300 - state.distance * 0.7) % (canvas.width + 320);
+    const x = (lane + canvas.width + 320) % (canvas.width + 320) - 150;
+    drawMaskedCrowdMarker(x, floorTop - 46, index % 3);
+  }
+}
+
+function drawGroundLandmark(x, y, isPipe) {
+  if (isPipe) {
+    drawPipe(x, y - 34, 88, 62);
+    return;
+  }
+  drawBrickSteps(x, y + 8, 3);
+}
+
+function drawWheelchairLane(x, y, hasRelic) {
+  ctx.fillStyle = "#9bd6ff";
+  ctx.fillRect(x, y + 8, 142, 10);
+  ctx.fillStyle = "#1d4ed8";
+  ctx.fillRect(x + 8, y + 12, 126, 3);
+  ctx.strokeStyle = "#334155";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(x + 20, y + 36);
+  ctx.lineTo(x + 92, y);
+  ctx.lineTo(x + 128, y);
+  ctx.stroke();
+  ctx.fillStyle = "#f8fafc";
+  ctx.fillRect(x + 98, y - 28, 36, 24);
+  ctx.strokeStyle = "#334155";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(x + 98, y - 28, 36, 24);
+  ctx.fillStyle = "#334155";
+  ctx.beginPath();
+  ctx.arc(x + 110, y - 16, 5, 0, Math.PI * 2);
+  ctx.arc(x + 124, y - 16, 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (hasRelic) {
+    ctx.fillStyle = "#facc15";
+    ctx.fillRect(x + 16, y - 18, 18, 18);
+    ctx.fillStyle = "#ef4444";
+    ctx.fillRect(x + 40, y - 18, 18, 18);
+    ctx.fillStyle = "#e5e7eb";
+    ctx.fillRect(x + 64, y - 18, 18, 18);
+  }
+}
+
+function drawMaskedCrowdMarker(x, y, variant) {
+  ctx.fillStyle = "rgba(17, 24, 39, 0.88)";
+  for (let index = 0; index < 4; index += 1) {
+    const px = x + index * 24;
+    const height = 30 + ((index + variant) % 3) * 8;
+    ctx.fillRect(px, y + 44 - height, 18, height);
+    ctx.beginPath();
+    ctx.arc(px + 9, y + 38 - height, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#f8fafc";
+    ctx.fillRect(px + 4, y + 36 - height, 10, 3);
+    ctx.fillStyle = "rgba(17, 24, 39, 0.88)";
+  }
+
+  ctx.fillStyle = variant === 0 ? "#ef4444" : "#facc15";
+  ctx.fillRect(x + 108, y + 4, 12, 56);
+  ctx.fillRect(x + 94, y + 4, 40, 18);
+  ctx.fillStyle = "#111827";
+  ctx.font = '14px "DotGothic16"';
+  ctx.fillText("NG", x + 102, y + 19);
+}
+
+function drawQuestionBlock(x, y, hasMark) {
+  ctx.fillStyle = "#f7b33d";
+  ctx.fillRect(x, y, 34, 34);
+  ctx.fillStyle = "#ffe08a";
+  ctx.fillRect(x + 4, y + 4, 26, 10);
+  ctx.strokeStyle = "#91572c";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x + 1, y + 1, 32, 32);
+  if (hasMark) {
+    ctx.fillStyle = "#7a3f1d";
+    ctx.font = '24px "DotGothic16"';
+    ctx.fillText("?", x + 9, y + 25);
+  }
+}
+
+function drawBrickSteps(x, floorY, steps) {
+  for (let col = 0; col < steps; col += 1) {
+    for (let row = 0; row <= col; row += 1) {
+      const bx = x + col * 28;
+      const by = floorY - row * 24;
+      ctx.fillStyle = "#c66d49";
+      ctx.fillRect(bx, by, 26, 22);
+      ctx.fillStyle = "#ef916c";
+      ctx.fillRect(bx + 3, by + 3, 20, 6);
+      ctx.strokeStyle = "#7d3f2a";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(bx, by, 26, 22);
+    }
+  }
+}
+
+function drawCoinMarker(x, y) {
+  ctx.fillStyle = "#ffd94a";
+  ctx.beginPath();
+  ctx.ellipse(x, y, 9, 13, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#b7791f";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = "#fff2a8";
+  ctx.fillRect(x - 2, y - 8, 3, 16);
+}
+
+function drawBossGate(x, y, stageIndex = 0) {
+  ctx.fillStyle = stageIndex === 1 ? "#1e40af" : stageIndex === 2 ? "#111827" : "#26335f";
+  ctx.fillRect(x, y, 18, 104);
+  ctx.fillRect(x + 72, y, 18, 104);
+  ctx.fillRect(x, y, 90, 18);
+  ctx.fillStyle = stageIndex === 1 ? "#93c5fd" : stageIndex === 2 ? "#ef4444" : "#ffcf4a";
+  ctx.fillRect(x + 20, y + 24, 50, 12);
+  ctx.fillStyle = "#f8fafc";
+  ctx.font = '16px "DotGothic16"';
+  ctx.fillText("BOSS", x + 22, y + 54);
+}
+
 function renderPlayer() {
   const player = state.player;
   const blink = performance.now() < state.invincibleUntil && Math.floor(performance.now() / 80) % 2 === 0;
   if (blink) return;
 
-  if (trimmedPlayerSprite) {
-    const drawWidth = 70;
-    const drawHeight = 96;
-    const drawX = player.x - 18;
-    const drawY = player.y - 28;
+  const sprite = transparentPlayerSprite || (playerSprite.complete && playerSprite.naturalWidth > 0 ? playerSprite : null);
+
+  if (sprite) {
+    const drawHeight = 104;
+    const drawWidth = drawHeight * (sprite.width / sprite.height);
+    const drawX = player.x + player.width / 2 - drawWidth / 2;
+    const drawY = player.y + player.height - drawHeight;
 
     ctx.save();
     if (player.facing === -1) {
       ctx.translate(drawX + drawWidth / 2, 0);
       ctx.scale(-1, 1);
-      ctx.drawImage(trimmedPlayerSprite, -drawWidth / 2, drawY, drawWidth, drawHeight);
+      ctx.drawImage(sprite, -drawWidth / 2, drawY, drawWidth, drawHeight);
     } else {
-      ctx.drawImage(trimmedPlayerSprite, drawX, drawY, drawWidth, drawHeight);
+      ctx.drawImage(sprite, drawX, drawY, drawWidth, drawHeight);
     }
     ctx.restore();
   } else {
@@ -753,6 +1300,30 @@ function renderPlayer() {
 
 function renderObject(object) {
   const y = object.renderY ?? object.y;
+  const isItem = object.kind === "comment" || object.kind === "topic" || object.kind === "battery" || object.kind === "pon";
+  const isEnemy = object.kind === "fire" || object.kind === "ban" || object.kind === "flyer" || object.kind === "drop";
+
+  if (isItem) {
+    ctx.save();
+    ctx.strokeStyle = object.kind === "pon" ? "#38bdf8" : object.kind === "battery" ? "#22c55e" : "#facc15";
+    ctx.lineWidth = 4;
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath();
+    ctx.arc(object.x + object.width / 2, y + object.height / 2, Math.max(object.width, object.height) * 0.65, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  } else if (isEnemy) {
+    ctx.save();
+    ctx.strokeStyle = "#ef4444";
+    ctx.lineWidth = 3;
+    ctx.globalAlpha = 0.95;
+    ctx.strokeRect(object.x - 3, y - 3, object.width + 6, object.height + 6);
+    ctx.fillStyle = "#ef4444";
+    ctx.font = '18px "DotGothic16"';
+    ctx.fillText("!", object.x + object.width / 2 - 4, y - 7);
+    ctx.restore();
+  }
+
   if (object.kind === "comment") {
     ctx.fillStyle = "#ffd44d";
     ctx.beginPath();
@@ -763,8 +1334,13 @@ function renderObject(object) {
     ctx.arc(object.x + 10, y + 10, 6, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = "#b67519";
-    ctx.fillRect(object.x + 11, y + 4, 2, 16);
-    ctx.fillRect(object.x + 6, y + 11, 12, 2);
+    ctx.fillRect(object.x + 6, y + 8, 12, 2);
+    ctx.fillRect(object.x + 6, y + 13, 9, 2);
+    ctx.beginPath();
+    ctx.moveTo(object.x + 10, y + 19);
+    ctx.lineTo(object.x + 14, y + 16);
+    ctx.lineTo(object.x + 16, y + 20);
+    ctx.fill();
   } else if (object.kind === "topic") {
     ctx.fillStyle = "#ff7ad8";
     ctx.beginPath();
@@ -782,9 +1358,40 @@ function renderObject(object) {
     ctx.beginPath();
     ctx.arc(object.x + 12, y + 12, 12, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(object.x + 10, y + 4, 4, 16);
-    ctx.fillRect(object.x + 4, y + 10, 16, 4);
+    ctx.fillStyle = "#064e3b";
+    ctx.font = '11px "DotGothic16"';
+    ctx.fillText("HP", object.x + 5, y + 16);
+  } else if (object.kind === "pon") {
+    drawPonSprite(object.x - 2, y - 2, 0.58, false);
+  } else if (object.kind === "flyer") {
+    ctx.fillStyle = "#5b4acb";
+    ctx.beginPath();
+    ctx.ellipse(object.x + 21, y + 15, 22, 15, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#a78bfa";
+    ctx.beginPath();
+    ctx.ellipse(object.x + 8, y + 10, 15, 8, -0.4, 0, Math.PI * 2);
+    ctx.ellipse(object.x + 34, y + 10, 15, 8, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#f8fafc";
+    ctx.beginPath();
+    ctx.arc(object.x + 16, y + 12, 4, 0, Math.PI * 2);
+    ctx.arc(object.x + 28, y + 12, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#111827";
+    ctx.fillRect(object.x + 15, y + 12, 3, 3);
+    ctx.fillRect(object.x + 27, y + 12, 3, 3);
+  } else if (object.kind === "drop") {
+    ctx.fillStyle = "#ef4444";
+    ctx.beginPath();
+    ctx.moveTo(object.x + 9, y);
+    ctx.lineTo(object.x + 18, y + 18);
+    ctx.lineTo(object.x + 9, y + 22);
+    ctx.lineTo(object.x, y + 18);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#7f1d1d";
+    ctx.fillRect(object.x + 7, y + 5, 4, 8);
   } else if (object.kind === "fire") {
     ctx.fillStyle = "#7d3a12";
     ctx.beginPath();
@@ -803,16 +1410,16 @@ function renderObject(object) {
     ctx.quadraticCurveTo(object.x + 10, y + 14, object.x + 14, y + 9);
     ctx.fill();
   } else if (object.kind === "ban") {
-    ctx.fillStyle = "#7b4c2e";
-    ctx.fillRect(object.x + 16, y + 6, 10, 44);
-    ctx.fillStyle = "#ffe7a8";
+    ctx.fillStyle = "#4b1d1d";
+    ctx.fillRect(object.x + 17, y + 8, 8, 42);
+    ctx.fillStyle = "#111827";
     ctx.fillRect(object.x, y, 42, 30);
-    ctx.strokeStyle = "#7b4c2e";
+    ctx.strokeStyle = "#ef4444";
     ctx.lineWidth = 3;
     ctx.strokeRect(object.x + 1.5, y + 1.5, 39, 27);
-    ctx.fillStyle = "#d83a3a";
-    ctx.fillRect(object.x + 18, y + 6, 6, 18);
-    ctx.fillRect(object.x + 12, y + 12, 18, 6);
+    ctx.fillStyle = "#fef2f2";
+    ctx.font = '14px "DotGothic16"';
+    ctx.fillText("NG", object.x + 9, y + 20);
   }
 }
 
@@ -833,6 +1440,274 @@ function renderProjectile(projectile) {
   ctx.fillRect(-8, -3, 12, 7);
 
   ctx.restore();
+}
+
+function renderBossProjectile(shot) {
+  ctx.save();
+  ctx.fillStyle = shot.color ?? "#fca5a5";
+  if (shot.kind === "kick") {
+    ctx.fillRect(shot.x, shot.y + 6, shot.width, 10);
+    ctx.beginPath();
+    ctx.arc(shot.x, shot.y + 11, 10, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (shot.kind === "double-punch") {
+    ctx.fillRect(shot.x, shot.y, shot.width, shot.height);
+    ctx.fillStyle = "#111827";
+    ctx.fillRect(shot.x + 4, shot.y + 4, 8, 4);
+  } else {
+    ctx.beginPath();
+    ctx.arc(shot.x + shot.width / 2, shot.y + shot.height / 2, shot.width / 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.75)";
+    ctx.fillRect(shot.x + 7, shot.y + 7, 10, 3);
+  }
+  ctx.restore();
+}
+
+function renderCompanion() {
+  const shield = companionCollider();
+  if (!shield) return;
+
+  drawPonSprite(shield.x - 5, shield.y - 6, 0.72, true);
+  ctx.strokeStyle = "#38bdf8";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(shield.x - 4, shield.y - 4, shield.width + 8, shield.height + 8);
+}
+
+function drawPonSprite(x, y, scale = 1, active = false) {
+  if (ponSprite.complete && ponSprite.naturalWidth > 0) {
+    const width = 52 * scale;
+    const height = 66 * scale;
+    ctx.drawImage(ponSprite, x, y, width, height);
+    return;
+  }
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+
+  ctx.fillStyle = "rgba(0, 0, 0, 0.16)";
+  ctx.beginPath();
+  ctx.ellipse(22, 52, 18, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = active ? "#e0f2fe" : "#f8fafc";
+  ctx.beginPath();
+  ctx.ellipse(23, 30, 19, 23, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#dbeafe";
+  ctx.beginPath();
+  ctx.ellipse(23, 34, 15, 16, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#111827";
+  ctx.beginPath();
+  ctx.arc(16, 24, 3, 0, Math.PI * 2);
+  ctx.arc(30, 24, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.arc(17, 23, 1.1, 0, Math.PI * 2);
+  ctx.arc(31, 23, 1.1, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "#0ea5e9";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(23, 30, 11, 0.15, Math.PI - 0.15);
+  ctx.stroke();
+
+  ctx.fillStyle = "#0ea5e9";
+  ctx.fillRect(12, 5, 22, 6);
+  ctx.fillStyle = "#38bdf8";
+  ctx.fillRect(15, 0, 16, 8);
+
+  ctx.fillStyle = "#1d4ed8";
+  ctx.font = '12px "DotGothic16"';
+  ctx.fillText("PON", 10, 61);
+  ctx.restore();
+}
+
+function renderBoss() {
+  if (!state.boss) return;
+  const boss = state.boss;
+  const sprite = bossSprites[boss.id];
+
+  ctx.save();
+  if (sprite && sprite.complete && sprite.naturalWidth > 0) {
+    drawBossSpriteImage(boss, sprite);
+  } else if (boss.id === "issy") {
+    drawIssyBoss(boss);
+  } else if (boss.id === "yoshi") {
+    drawYoshiBoss(boss);
+  } else if (boss.id === "mirori") {
+    drawMiroriBoss(boss);
+  }
+
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.fillRect(canvas.width - 260, 20, 220, 18);
+  ctx.fillStyle = "#ef4444";
+  ctx.fillRect(canvas.width - 260, 20, 220 * (boss.hp / boss.maxHp), 18);
+  ctx.strokeStyle = "#1f2937";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(canvas.width - 260, 20, 220, 18);
+  ctx.fillStyle = "#1f2937";
+  ctx.font = '16px "DotGothic16"';
+  ctx.fillText(`${boss.name} ${boss.title}`, canvas.width - 260, 58);
+  ctx.restore();
+}
+
+function drawBossSpriteImage(boss, sprite) {
+  drawBossShadow(boss);
+  const drawWidth = boss.id === "mirori" ? 122 : boss.id === "yoshi" ? 128 : 110;
+  const drawHeight = boss.id === "mirori" ? 132 : boss.id === "yoshi" ? 118 : 126;
+  const drawX = boss.x + boss.width / 2 - drawWidth / 2;
+  const drawY = boss.y + boss.height - drawHeight;
+
+  ctx.drawImage(sprite, drawX, drawY, drawWidth, drawHeight);
+
+  if (boss.id === "issy") {
+    const kickPulse = Math.sin(performance.now() * 0.014) > 0 ? 8 : 0;
+    ctx.fillStyle = "rgba(255, 164, 86, 0.42)";
+    ctx.fillRect(drawX - 18 - kickPulse, drawY + 88, 44 + kickPulse, 12);
+  }
+}
+
+function drawBossShadow(boss) {
+  ctx.fillStyle = "rgba(0, 0, 0, 0.22)";
+  ctx.beginPath();
+  ctx.ellipse(boss.x + boss.width / 2, boss.y + boss.height + 4, 42, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawIssyBoss(boss) {
+  const x = boss.x;
+  const y = boss.y;
+  drawBossShadow(boss);
+
+  ctx.fillStyle = "#f0b48c";
+  ctx.fillRect(x + 22, y + 36, 34, 42);
+  ctx.fillStyle = "#d96f53";
+  ctx.fillRect(x + 12, y + 38, 14, 34);
+  ctx.fillRect(x + 52, y + 38, 14, 34);
+  ctx.fillStyle = "#1f2937";
+  ctx.fillRect(x + 22, y + 74, 18, 18);
+  ctx.fillRect(x + 45, y + 74, 18, 18);
+  ctx.fillStyle = "#0f172a";
+  ctx.fillRect(x + 8, y + 88, 32, 8);
+  ctx.fillRect(x + 44, y + 88, 34, 8);
+
+  ctx.fillStyle = "#f0b48c";
+  ctx.beginPath();
+  ctx.arc(x + 39, y + 23, 22, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#111827";
+  ctx.beginPath();
+  ctx.ellipse(x + 39, y + 8, 25, 13, 0, Math.PI, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(x + 17, y + 8, 44, 12);
+  ctx.fillStyle = "#334155";
+  ctx.fillRect(x + 24, y + 22, 12, 3);
+  ctx.fillRect(x + 42, y + 22, 12, 3);
+  ctx.fillStyle = "#1f2937";
+  ctx.fillRect(x + 29, y + 21, 4, 3);
+  ctx.fillRect(x + 47, y + 21, 4, 3);
+  ctx.fillStyle = "#7c2d12";
+  ctx.fillRect(x + 33, y + 52, 9, 18);
+  ctx.fillRect(x + 46, y + 52, 8, 18);
+
+  ctx.fillStyle = "#ef7d4d";
+  ctx.fillRect(x - 12, y + 61, 44, 12);
+  ctx.fillStyle = "#111827";
+  ctx.fillRect(x - 20, y + 67, 18, 8);
+}
+
+function drawYoshiBoss(boss) {
+  const x = boss.x;
+  const y = boss.y;
+  drawBossShadow(boss);
+
+  ctx.strokeStyle = "#111827";
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.arc(x + 18, y + 83, 15, 0, Math.PI * 2);
+  ctx.arc(x + 59, y + 83, 15, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = "#4b5563";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(x + 18, y + 68);
+  ctx.lineTo(x + 58, y + 68);
+  ctx.lineTo(x + 66, y + 44);
+  ctx.stroke();
+
+  ctx.fillStyle = "#111827";
+  ctx.fillRect(x + 20, y + 44, 42, 30);
+  ctx.fillStyle = "#b91c1c";
+  ctx.fillRect(x + 31, y + 44, 16, 30);
+  ctx.fillStyle = "#f0b48c";
+  ctx.beginPath();
+  ctx.arc(x + 42, y + 28, 18, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#111827";
+  ctx.fillRect(x + 24, y + 14, 34, 12);
+  ctx.fillStyle = "#334155";
+  ctx.fillRect(x + 30, y + 30, 24, 4);
+
+  ctx.strokeStyle = "#6b7280";
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(x + 24, y + 60);
+  ctx.lineTo(x - 10, y + 54);
+  ctx.stroke();
+  ctx.fillStyle = "#d1d5db";
+  ctx.beginPath();
+  ctx.arc(x - 12, y + 54, 5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawMiroriBoss(boss) {
+  const x = boss.x;
+  const y = boss.y;
+  drawBossShadow(boss);
+
+  ctx.fillStyle = "#111827";
+  ctx.fillRect(x + 18, y + 35, 42, 48);
+  ctx.fillStyle = "#37d64f";
+  ctx.font = '18px "DotGothic16"';
+  ctx.fillText("KICK", x + 19, y + 61);
+  ctx.fillStyle = "#111827";
+  ctx.fillRect(x + 16, y + 78, 16, 18);
+  ctx.fillRect(x + 48, y + 78, 16, 18);
+
+  ctx.fillStyle = "#111827";
+  ctx.beginPath();
+  ctx.arc(x + 39, y + 22, 24, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#f0b48c";
+  ctx.beginPath();
+  ctx.ellipse(x + 39, y + 24, 16, 18, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#111827";
+  ctx.fillRect(x + 23, y + 12, 32, 26);
+  ctx.fillStyle = "#f0b48c";
+  ctx.fillRect(x + 33, y + 21, 12, 8);
+  ctx.strokeStyle = "#d6b56d";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(x + 20, y + 13, 17, 16);
+  ctx.strokeRect(x + 42, y + 13, 17, 16);
+  ctx.fillStyle = "#ef4444";
+  ctx.fillRect(x + 35, y + 34, 11, 3);
+
+  const punch = Math.sin(performance.now() * 0.012) > 0 ? 10 : 0;
+  ctx.fillStyle = "#111827";
+  ctx.fillRect(x - 18 - punch, y + 43, 42, 13);
+  ctx.fillRect(x + 55 + punch, y + 43, 42, 13);
+  ctx.fillStyle = "#f0b48c";
+  ctx.beginPath();
+  ctx.arc(x - 23 - punch, y + 49, 9, 0, Math.PI * 2);
+  ctx.arc(x + 101 + punch, y + 49, 9, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function renderParticles() {
@@ -861,7 +1736,7 @@ function renderOverlay() {
     ctx.fillStyle = "#fffef9";
     ctx.textAlign = "center";
     ctx.font = '44px "DotGothic16"';
-    ctx.fillText(state.life <= 0 ? "配信終了" : "野田草履の冒険島", canvas.width / 2, canvas.height / 2 - 40);
+    ctx.fillText(state.life <= 0 ? "配信終了" : "マナスタイン島の冒険", canvas.width / 2, canvas.height / 2 - 40);
     ctx.font = '24px "DotGothic16"';
     const line = state.life <= 0 ? "もう一度ボタンで再挑戦" : "開始ボタンで配信スタート";
     ctx.fillText(line, canvas.width / 2, canvas.height / 2 + 8);
@@ -883,16 +1758,21 @@ function loop(now) {
   state.lastTick = now;
 
   if (state.running) {
-    state.distance += state.cameraSpeed;
+    if (!state.boss) {
+      state.distance += state.cameraSpeed;
+    }
     updateStage();
     updatePlayer();
-    spawnObject(now);
+    if (!state.boss) {
+      spawnObject(now);
+    }
+    updateBoss(now);
     updateObjects();
     updateProjectiles();
     updateParticles();
     state.hype = clamp(state.hype - 0.004 * delta, 0, 100);
 
-    if (state.stageIndex >= 2 && state.distance >= 7800 && state.hype >= 63) {
+    if (state.stageIndex >= 2 && state.distance >= STAGE_SEGMENT_LENGTH * stages.length && state.hype >= 63 && state.bossesDefeated[2]) {
       state.running = false;
       state.message = "大成功。島の空気を完全につかんだ。";
     }
@@ -901,6 +1781,9 @@ function loop(now) {
   renderBackground();
   state.objects.forEach(renderObject);
   state.projectiles.forEach(renderProjectile);
+  state.bossProjectiles.forEach(renderBossProjectile);
+  renderBoss();
+  renderCompanion();
   renderPlayer();
   renderParticles();
   renderOverlay();
@@ -926,15 +1809,13 @@ startButton.addEventListener("click", async () => {
   if (audioCtx && audioCtx.state === "suspended") {
     await audioCtx.resume();
   }
-  startOverlay.classList.add("hidden");
+  hideStartOverlay();
   resetGame();
 });
 
 resetGame();
 state.running = false;
-if (startOverlay) {
-  startOverlay.classList.remove("hidden");
-}
+showStartOverlay("start");
 requestAnimationFrame(loop);
 
 
