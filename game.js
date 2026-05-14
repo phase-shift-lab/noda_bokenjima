@@ -53,6 +53,7 @@ const state = {
   objects: [],
   projectiles: [],
   bossProjectiles: [],
+  cleared: false,
   companion: {
     active: false,
     hp: 0,
@@ -293,6 +294,7 @@ function resetGame() {
   state.particles = [];
   state.projectiles = [];
   state.bossProjectiles = [];
+  state.cleared = false;
   state.companion.active = false;
   state.companion.hp = 0;
   state.companion.cooldownUntil = 0;
@@ -731,12 +733,31 @@ function defeatBoss() {
   state.bossesDefeated[stageIndex] = true;
   state.score += 1200 + stageIndex * 600;
   state.hype = clamp(state.hype + 18, 0, 100);
-  state.message = `${state.boss.name}撃破。次のエリアへ進める。`;
   emitParticles(state.boss.x + 30, state.boss.y + 35, "#fef08a", 30);
   beep(860, 0.08, "square", 0.03);
   beep(1120, 0.14, "triangle", 0.025);
   state.boss = null;
   state.bossProjectiles = [];
+
+  if (stageIndex === stages.length - 1) {
+    completeGameClear();
+    return;
+  }
+
+  state.message = `${stages[stageIndex].boss.name}撃破。次のエリアへ進める。`;
+}
+
+function completeGameClear() {
+  state.running = false;
+  state.cleared = true;
+  state.score += 3000;
+  state.hype = 100;
+  state.objects = [];
+  state.projectiles = [];
+  state.bossProjectiles = [];
+  state.companion.active = false;
+  state.message = "囚われていた美女たちが解放された。";
+  emitParticles(canvas.width / 2, canvas.height / 2 - 80, "#fef08a", 80);
 }
 
 function updateBoss(now) {
@@ -1719,6 +1740,65 @@ function renderParticles() {
   ctx.globalAlpha = 1;
 }
 
+function drawRescuedBeauty(x, y, variant) {
+  const dressColors = ["#f472b6", "#60a5fa", "#34d399", "#facc15", "#c084fc"];
+  const hairColors = ["#1f2937", "#4a2c1a", "#111827", "#7c2d12", "#3f2f24"];
+  const dress = dressColors[variant % dressColors.length];
+  const hair = hairColors[variant % hairColors.length];
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
+  ctx.fillRect(-13, 46, 26, 5);
+  ctx.fillStyle = hair;
+  ctx.fillRect(-13, -3, 26, 24);
+  ctx.fillStyle = "#f3c2a2";
+  ctx.fillRect(-9, 5, 18, 19);
+  ctx.fillStyle = "#111827";
+  ctx.fillRect(-5, 12, 3, 3);
+  ctx.fillRect(4, 12, 3, 3);
+  ctx.fillStyle = "#9f1239";
+  ctx.fillRect(-4, 20, 8, 2);
+  ctx.fillStyle = dress;
+  ctx.fillRect(-12, 27, 24, 21);
+  ctx.fillStyle = "#f3c2a2";
+  ctx.fillRect(-18, 29, 6, 17);
+  ctx.fillRect(12, 29, 6, 17);
+  ctx.fillStyle = "#fef3c7";
+  ctx.fillRect(-10, -9, 20, 5);
+  ctx.restore();
+}
+
+function renderClearOverlay() {
+  ctx.fillStyle = "rgba(20, 30, 64, 0.58)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "rgba(255, 253, 232, 0.94)";
+  ctx.fillRect(86, 72, canvas.width - 172, canvas.height - 128);
+  ctx.strokeStyle = "#24396b";
+  ctx.lineWidth = 5;
+  ctx.strokeRect(86, 72, canvas.width - 172, canvas.height - 128);
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#24396b";
+  ctx.font = '42px "DotGothic16"';
+  ctx.fillText("クリア", canvas.width / 2, 128);
+  ctx.font = '24px "DotGothic16"';
+  ctx.fillText("囚われていた美女たちが解放された", canvas.width / 2, 166);
+  ctx.fillText(`SCORE ${state.score}`, canvas.width / 2, 202);
+
+  for (let index = 0; index < 10; index += 1) {
+    const col = index % 5;
+    const row = Math.floor(index / 5);
+    drawRescuedBeauty(canvas.width / 2 - 176 + col * 88, 260 + row * 92, index);
+  }
+
+  ctx.fillStyle = "#24a86a";
+  ctx.font = '22px "DotGothic16"';
+  ctx.fillText("島に平和が戻った", canvas.width / 2, canvas.height - 92);
+  ctx.textAlign = "left";
+}
+
 function renderOverlay() {
   ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
   ctx.fillRect(18, 18, 420, 82);
@@ -1731,6 +1811,11 @@ function renderOverlay() {
   ctx.fillText(state.message, 34, 74);
 
   if (!state.running) {
+    if (state.cleared) {
+      renderClearOverlay();
+      return;
+    }
+
     ctx.fillStyle = "rgba(25, 53, 102, 0.45)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "#fffef9";
@@ -1772,10 +1857,6 @@ function loop(now) {
     updateParticles();
     state.hype = clamp(state.hype - 0.004 * delta, 0, 100);
 
-    if (state.stageIndex >= 2 && state.distance >= STAGE_SEGMENT_LENGTH * stages.length && state.hype >= 63 && state.bossesDefeated[2]) {
-      state.running = false;
-      state.message = "大成功。島の空気を完全につかんだ。";
-    }
   }
 
   renderBackground();
