@@ -11,6 +11,7 @@ const startOverlay = document.getElementById("startOverlay");
 const startTitle = startOverlay?.querySelector("h1");
 const startLead = startOverlay?.querySelector(".lead");
 const startNote = startOverlay?.querySelector(".note");
+const shareLink = document.getElementById("shareLink");
 
 const keys = new Set();
 const playerSprite = new Image();
@@ -295,6 +296,7 @@ function resetGame() {
   state.projectiles = [];
   state.bossProjectiles = [];
   state.cleared = false;
+  hideShareLink();
   state.companion.active = false;
   state.companion.hp = 0;
   state.companion.cooldownUntil = 0;
@@ -317,7 +319,7 @@ function showStartOverlay(mode = "start") {
     startButton.textContent = "もう一度挑戦";
   } else {
     if (startTitle) startTitle.textContent = "マナスタイン島の冒険";
-    if (startLead) startLead.textContent = "小さくなった主人公で3ステージを進み、Zでマグカップを投げて障害物をどかす。";
+    if (startLead) startLead.textContent = "小さくなったムネくんで3ステージを進み、Zでマグカップを投げて障害物をどかす。";
     if (startNote) startNote.textContent = "操作: ← → 移動 / Space ジャンプ / Z マグカップ投げ";
     startButton.textContent = "ゲーム開始";
   }
@@ -329,6 +331,21 @@ function hideStartOverlay() {
   if (startOverlay) {
     startOverlay.classList.add("hidden");
   }
+}
+
+function hideShareLink() {
+  if (!shareLink) return;
+  shareLink.classList.add("hidden");
+  shareLink.href = "#";
+}
+
+function showShareLink() {
+  if (!shareLink) return;
+  const pageUrl = window.location.href.split("#")[0];
+  const tweetText = `マナスタイン島の冒険をクリア！ムネくんで3面ボスを倒して、囚われていた美女たちを解放した。SCORE ${state.score} #野田草履 #横山緑`;
+  const params = new URLSearchParams({ text: tweetText, url: pageUrl });
+  shareLink.href = `https://twitter.com/intent/tweet?${params.toString()}`;
+  shareLink.classList.remove("hidden");
 }
 
 function spawnObject(now) {
@@ -757,6 +774,7 @@ function completeGameClear() {
   state.bossProjectiles = [];
   state.companion.active = false;
   state.message = "囚われていた美女たちが解放された。";
+  showShareLink();
   emitParticles(canvas.width / 2, canvas.height / 2 - 80, "#fef08a", 80);
 }
 

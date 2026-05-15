@@ -104,6 +104,32 @@ body {
   place-items: center;
 }
 
+.share-link {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(18px, 5vw, 42px);
+  z-index: 2;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 150px;
+  min-height: 44px;
+  padding: 10px 20px;
+  border: 3px solid rgba(29, 35, 64, 0.92);
+  border-radius: 999px;
+  background: #111827;
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.24);
+  font-family: "DotGothic16", monospace;
+  font-size: 18px;
+  text-decoration: none;
+}
+
+.share-link.hidden {
+  display: none;
+}
+
 #gameCanvas {
   display: block;
   width: 100%;

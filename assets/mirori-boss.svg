@@ -2,17 +2,18 @@
   <defs>
     <linearGradient id="skin" x1="0" x2="0" y1="0" y2="1">
       <stop offset="0" stop-color="#efbd94"/>
-      <stop offset=".58" stop-color="#c9835f"/>
-      <stop offset="1" stop-color="#8f4c39"/>
+      <stop offset=".58" stop-color="#c5805d"/>
+      <stop offset="1" stop-color="#874834"/>
     </linearGradient>
     <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="5" stdDeviation="3" flood-color="#000" flood-opacity=".38"/>
+      <feDropShadow dx="0" dy="5" stdDeviation="3" flood-color="#000" flood-opacity=".4"/>
     </filter>
   </defs>
-  <ellipse cx="107" cy="213" rx="70" ry="11" fill="#000" opacity=".25"/>
+  <ellipse cx="107" cy="213" rx="70" ry="11" fill="#000" opacity=".27"/>
   <g filter="url(#shadow)">
     <path d="M60 93h94l-9 96H70z" fill="#111827"/>
     <rect x="67" y="105" width="79" height="42" fill="#151923"/>
+    <rect x="72" y="111" width="66" height="8" fill="#1f2937"/>
     <text x="76" y="136" font-family="monospace" font-size="25" font-weight="900" fill="#50e35d">KICK</text>
     <rect x="70" y="186" width="29" height="31" fill="#0b1020"/>
     <rect x="116" y="186" width="29" height="31" fill="#0b1020"/>
@@ -24,6 +25,8 @@
     <path d="M72 47c15-29 55-34 73-3-12-10-27-13-39-8-13-6-24-3-34 11z" fill="#05070a"/>
     <path d="M76 48c8 15 8 31 0 48L58 78c5-18 8-25 18-30zM138 48c-8 15-8 31 0 48l17-18c-5-18-7-25-17-30z" fill="#05070a"/>
     <path d="M95 50h24l-7 28H99z" fill="#05070a"/>
+    <rect x="66" y="36" width="12" height="41" fill="#05070a"/>
+    <rect x="138" y="36" width="12" height="41" fill="#05070a"/>
 
     <rect x="72" y="43" width="35" height="31" rx="3" fill="none" stroke="#d8be76" stroke-width="7"/>
     <rect x="109" y="43" width="35" height="31" rx="3" fill="none" stroke="#d8be76" stroke-width="7"/>
@@ -31,17 +34,16 @@
     <rect x="87" y="58" width="5" height="4" fill="#111827"/>
     <rect x="124" y="58" width="5" height="4" fill="#111827"/>
     <rect x="96" y="82" width="32" height="5" fill="#7f1d1d"/>
+    <rect x="82" y="37" width="17" height="6" fill="#d8be76" opacity=".58"/>
+    <rect x="118" y="37" width="17" height="6" fill="#d8be76" opacity=".58"/>
 
     <path d="M67 110c-33 6-56 24-65 50l23 11c9-19 25-31 51-36z" fill="#111827"/>
     <path d="M143 110c35 6 58 24 65 50l-23 11c-9-19-25-31-51-36z" fill="#111827"/>
     <circle cx="13" cy="166" r="16" fill="url(#skin)"/>
     <circle cx="197" cy="166" r="16" fill="url(#skin)"/>
     <path d="M61 109c-10 9-18 22-22 38M152 109c10 9 18 22 22 38" stroke="#2f3a4d" stroke-width="4" fill="none"/>
-
-    <rect x="65" y="37" width="11" height="40" fill="#05070a"/>
-    <rect x="139" y="37" width="11" height="40" fill="#05070a"/>
-    <rect x="75" y="38" width="9" height="10" fill="#d8be76"/>
-    <rect x="132" y="38" width="9" height="10" fill="#d8be76"/>
+    <rect x="5" y="160" width="18" height="5" fill="#f0bd94" opacity=".8"/>
+    <rect x="188" y="160" width="18" height="5" fill="#f0bd94" opacity=".8"/>
     <text x="73" y="166" font-family="monospace" font-size="15" font-weight="900" fill="#fef3c7">MIRORI</text>
   </g>
 </svg>
