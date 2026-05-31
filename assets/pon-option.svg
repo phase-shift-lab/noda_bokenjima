@@ -48,6 +48,12 @@
     <rect x="18" y="70" width="6" height="17" fill="#d98f83"/>
     <rect x="68" y="69" width="6" height="17" fill="#d98f83"/>
     <rect x="19" y="89" width="52" height="5" fill="#0b1020" opacity=".38"/>
+    <rect x="29" y="40" width="9" height="2" fill="#fff2e7" opacity=".62"/>
+    <rect x="53" y="40" width="9" height="2" fill="#fff2e7" opacity=".5"/>
+    <rect x="24" y="66" width="11" height="4" fill="#f3b29e" opacity=".46"/>
+    <rect x="61" y="61" width="7" height="14" fill="#7f2633" opacity=".44"/>
+    <rect x="26" y="81" width="38" height="2" fill="#475569" opacity=".42"/>
+    <rect x="37" y="95" width="5" height="6" fill="#fef3c7" opacity=".55"/>
     <text x="21" y="108" font-family="monospace" font-size="16" font-weight="900" fill="#e0f2fe">PON</text>
   </g>
 </svg>

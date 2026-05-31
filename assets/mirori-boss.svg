@@ -44,6 +44,12 @@
     <path d="M61 109c-10 9-18 22-22 38M152 109c10 9 18 22 22 38" stroke="#2f3a4d" stroke-width="4" fill="none"/>
     <rect x="5" y="160" width="18" height="5" fill="#f0bd94" opacity=".8"/>
     <rect x="188" y="160" width="18" height="5" fill="#f0bd94" opacity=".8"/>
+    <rect x="76" y="39" width="19" height="2" fill="#fff0c2" opacity=".5"/>
+    <rect x="118" y="39" width="19" height="2" fill="#fff0c2" opacity=".42"/>
+    <rect x="86" y="73" width="9" height="2" fill="#d7a36b" opacity=".55"/>
+    <rect x="121" y="73" width="9" height="2" fill="#d7a36b" opacity=".55"/>
+    <rect x="75" y="147" width="60" height="4" fill="#2f3a4d" opacity=".42"/>
+    <rect x="91" y="116" width="34" height="4" fill="#7cff84" opacity=".28"/>
     <text x="73" y="166" font-family="monospace" font-size="15" font-weight="900" fill="#fef3c7">MIRORI</text>
   </g>
 </svg>

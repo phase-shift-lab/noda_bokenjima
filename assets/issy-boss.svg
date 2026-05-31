@@ -48,6 +48,12 @@
     <path d="M114 137l25 13 19 37-27 7-15-32-23-12z" fill="#f09b61"/>
     <rect x="35" y="147" width="43" height="10" fill="#2f1b16" opacity=".26"/>
     <rect x="130" y="154" width="22" height="8" fill="#7c2d12" opacity=".42"/>
+    <rect x="65" y="57" width="16" height="2" fill="#fff7ed" opacity=".58"/>
+    <rect x="101" y="57" width="16" height="2" fill="#fff7ed" opacity=".45"/>
+    <rect x="60" y="93" width="15" height="4" fill="#f6c8a7" opacity=".42"/>
+    <rect x="116" y="94" width="18" height="4" fill="#e25349" opacity=".5"/>
+    <rect x="78" y="139" width="36" height="3" fill="#51251c" opacity=".28"/>
+    <rect x="119" y="171" width="19" height="5" fill="#fff1d6" opacity=".38"/>
     <text x="56" y="187" font-family="monospace" font-size="15" font-weight="900" fill="#fef3c7">ISSY</text>
   </g>
 </svg>

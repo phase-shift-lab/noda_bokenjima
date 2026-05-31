@@ -15,7 +15,7 @@ const shareLink = document.getElementById("shareLink");
 
 const keys = new Set();
 const playerSprite = new Image();
-playerSprite.src = "./assets/noda-player.png";
+playerSprite.src = "./assets/mune-player.svg";
 let transparentPlayerSprite = null;
 
 const bossSprites = {
@@ -55,6 +55,7 @@ const state = {
   projectiles: [],
   bossProjectiles: [],
   cleared: false,
+  clearStartedAt: 0,
   companion: {
     active: false,
     hp: 0,
@@ -296,6 +297,7 @@ function resetGame() {
   state.projectiles = [];
   state.bossProjectiles = [];
   state.cleared = false;
+  state.clearStartedAt = 0;
   hideShareLink();
   state.companion.active = false;
   state.companion.hp = 0;
@@ -319,7 +321,7 @@ function showStartOverlay(mode = "start") {
     startButton.textContent = "もう一度挑戦";
   } else {
     if (startTitle) startTitle.textContent = "マナスタイン島の冒険";
-    if (startLead) startLead.textContent = "小さくなったムネくんで3ステージを進み、Zでマグカップを投げて障害物をどかす。";
+    if (startLead) startLead.textContent = "小さくなったムネくんで3ステージを進み、3面ボス撃破で囚われていた美女たちを解放する。";
     if (startNote) startNote.textContent = "操作: ← → 移動 / Space ジャンプ / Z マグカップ投げ";
     startButton.textContent = "ゲーム開始";
   }
@@ -342,8 +344,11 @@ function hideShareLink() {
 function showShareLink() {
   if (!shareLink) return;
   const pageUrl = window.location.href.split("#")[0];
-  const tweetText = `マナスタイン島の冒険をクリア！ムネくんで3面ボスを倒して、囚われていた美女たちを解放した。SCORE ${state.score} #野田草履 #横山緑`;
-  const params = new URLSearchParams({ text: tweetText, url: pageUrl });
+  const tweetText = `マナスタイン島の冒険をクリア！ムネくんで3面ボスを倒し、囚われていた美女たちを解放。SCORE ${state.score}。配信者ファンゲームを遊んでみて！ #野田草履 #横山緑`;
+  const params = new URLSearchParams({ text: tweetText });
+  if (/^https?:\/\//.test(pageUrl)) {
+    params.set("url", pageUrl);
+  }
   shareLink.href = `https://twitter.com/intent/tweet?${params.toString()}`;
   shareLink.classList.remove("hidden");
 }
@@ -767,6 +772,7 @@ function defeatBoss() {
 function completeGameClear() {
   state.running = false;
   state.cleared = true;
+  state.clearStartedAt = performance.now();
   state.score += 3000;
   state.hype = 100;
   state.objects = [];
@@ -1758,44 +1764,80 @@ function renderParticles() {
   ctx.globalAlpha = 1;
 }
 
-function drawRescuedBeauty(x, y, variant) {
+function drawRescuedBeauty(x, y, variant, pulse = 0) {
   const dressColors = ["#f472b6", "#60a5fa", "#34d399", "#facc15", "#c084fc"];
   const hairColors = ["#1f2937", "#4a2c1a", "#111827", "#7c2d12", "#3f2f24"];
   const dress = dressColors[variant % dressColors.length];
   const hair = hairColors[variant % hairColors.length];
+  const skin = variant % 3 === 0 ? "#f5c7a7" : variant % 3 === 1 ? "#eab08c" : "#d89473";
+  const bob = Math.sin(pulse + variant * 0.8) * 3;
+  const armLift = variant % 2 === 0 ? -10 : -4;
 
   ctx.save();
-  ctx.translate(x, y);
+  ctx.translate(x, y + bob);
   ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
-  ctx.fillRect(-13, 46, 26, 5);
+  ctx.fillRect(-16, 48 - bob, 32, 5);
+
+  ctx.fillStyle = "#fef3c7";
+  ctx.fillRect(-16, -13, 32, 5);
+  ctx.fillStyle = "#f59e0b";
+  ctx.fillRect(-9, -17, 5, 5);
+  ctx.fillRect(4, -17, 5, 5);
+
   ctx.fillStyle = hair;
-  ctx.fillRect(-13, -3, 26, 24);
-  ctx.fillStyle = "#f3c2a2";
-  ctx.fillRect(-9, 5, 18, 19);
+  ctx.fillRect(-15, -4, 30, 25);
+  ctx.fillRect(-18, 6, 6, 18);
+  ctx.fillRect(12, 6, 6, 18);
+  ctx.fillStyle = skin;
+  ctx.fillRect(-10, 4, 20, 20);
+  ctx.fillStyle = "rgba(255,255,255,0.28)";
+  ctx.fillRect(-8, 6, 5, 6);
   ctx.fillStyle = "#111827";
   ctx.fillRect(-5, 12, 3, 3);
   ctx.fillRect(4, 12, 3, 3);
   ctx.fillStyle = "#9f1239";
-  ctx.fillRect(-4, 20, 8, 2);
+  ctx.fillRect(-4, 20, 8, 3);
+
   ctx.fillStyle = dress;
-  ctx.fillRect(-12, 27, 24, 21);
-  ctx.fillStyle = "#f3c2a2";
-  ctx.fillRect(-18, 29, 6, 17);
-  ctx.fillRect(12, 29, 6, 17);
+  ctx.fillRect(-12, 27, 24, 20);
+  ctx.fillRect(-16, 41, 32, 8);
+  ctx.fillStyle = "rgba(255,255,255,0.32)";
+  ctx.fillRect(-8, 30, 4, 16);
+  ctx.fillRect(5, 30, 3, 14);
+
+  ctx.fillStyle = skin;
+  ctx.fillRect(-22, 27 + armLift, 6, 23 - armLift);
+  ctx.fillRect(16, 27 + (variant % 2 === 0 ? -4 : -10), 6, 27);
+  ctx.fillStyle = "#111827";
+  ctx.fillRect(-9, 49, 5, 10);
+  ctx.fillRect(5, 49, 5, 10);
   ctx.fillStyle = "#fef3c7";
-  ctx.fillRect(-10, -9, 20, 5);
+  ctx.fillRect(-24, 25 + armLift, 10, 6);
+  ctx.fillRect(14, 21 + (variant % 2 === 0 ? -4 : -10), 10, 6);
   ctx.restore();
 }
 
 function renderClearOverlay() {
+  const clearElapsed = state.clearStartedAt ? performance.now() - state.clearStartedAt : 0;
+  const pulse = clearElapsed * 0.006;
+
   ctx.fillStyle = "rgba(20, 30, 64, 0.58)";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  ctx.fillStyle = "rgba(255, 253, 232, 0.94)";
+  ctx.fillStyle = "rgba(255, 253, 232, 0.96)";
   ctx.fillRect(86, 72, canvas.width - 172, canvas.height - 128);
   ctx.strokeStyle = "#24396b";
   ctx.lineWidth = 5;
   ctx.strokeRect(86, 72, canvas.width - 172, canvas.height - 128);
+
+  for (let index = 0; index < 18; index += 1) {
+    const x = 120 + ((index * 47 + clearElapsed * 0.04) % (canvas.width - 240));
+    const y = 98 + ((index * 31 + Math.sin(pulse + index) * 12) % (canvas.height - 230));
+    ctx.fillStyle = index % 2 === 0 ? "#facc15" : "#60a5fa";
+    ctx.fillRect(x, y, 5, 5);
+    ctx.fillRect(x + 2, y - 4, 1, 13);
+    ctx.fillRect(x - 4, y + 2, 13, 1);
+  }
 
   ctx.textAlign = "center";
   ctx.fillStyle = "#24396b";
@@ -1808,12 +1850,12 @@ function renderClearOverlay() {
   for (let index = 0; index < 10; index += 1) {
     const col = index % 5;
     const row = Math.floor(index / 5);
-    drawRescuedBeauty(canvas.width / 2 - 176 + col * 88, 260 + row * 92, index);
+    drawRescuedBeauty(canvas.width / 2 - 176 + col * 88, 260 + row * 92, index, pulse);
   }
 
   ctx.fillStyle = "#24a86a";
   ctx.font = '22px "DotGothic16"';
-  ctx.fillText("島に平和が戻った", canvas.width / 2, canvas.height - 92);
+  ctx.fillText("島に平和が戻った。スコアをXに投稿できます", canvas.width / 2, canvas.height - 92);
   ctx.textAlign = "left";
 }
 
@@ -1843,7 +1885,7 @@ function renderOverlay() {
     ctx.font = '24px "DotGothic16"';
     const line = state.life <= 0 ? "もう一度ボタンで再挑戦" : "開始ボタンで配信スタート";
     ctx.fillText(line, canvas.width / 2, canvas.height / 2 + 8);
-    ctx.fillText("3ステージを抜けて熱量63以上で完走を目指せ", canvas.width / 2, canvas.height / 2 + 52);
+    ctx.fillText("3面ボスを倒して囚われていた美女たちを解放しよう", canvas.width / 2, canvas.height / 2 + 52);
     ctx.textAlign = "left";
   }
 }
@@ -1875,6 +1917,8 @@ function loop(now) {
     updateParticles();
     state.hype = clamp(state.hype - 0.004 * delta, 0, 100);
 
+  } else if (state.cleared) {
+    updateParticles();
   }
 
   renderBackground();
@@ -1904,12 +1948,13 @@ window.addEventListener("keyup", (event) => {
   keys.delete(event.code);
 });
 
-startButton.addEventListener("click", async () => {
-  if (audioCtx && audioCtx.state === "suspended") {
-    await audioCtx.resume();
-  }
+startButton.addEventListener("click", () => {
   hideStartOverlay();
   resetGame();
+
+  if (audioCtx && audioCtx.state === "suspended") {
+    audioCtx.resume().catch(() => {});
+  }
 });
 
 resetGame();

@@ -113,17 +113,40 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 150px;
+  gap: 8px;
+  min-width: 190px;
   min-height: 44px;
   padding: 10px 20px;
   border: 3px solid rgba(29, 35, 64, 0.92);
   border-radius: 999px;
-  background: #111827;
+  background: linear-gradient(180deg, #1f2937, #111827);
   color: #fff;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.24);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.24), inset 0 2px 0 rgba(255, 255, 255, 0.16);
   font-family: "DotGothic16", monospace;
   font-size: 18px;
+  line-height: 1.2;
   text-decoration: none;
+  white-space: nowrap;
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+}
+
+.share-link::before {
+  content: "X";
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #f8fafc;
+  color: #111827;
+  font-weight: 900;
+}
+
+.share-link:hover,
+.share-link:focus-visible {
+  transform: translateX(-50%) translateY(-2px);
+  background: linear-gradient(180deg, #273449, #111827);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.2);
 }
 
 .share-link.hidden {
